@@ -6,6 +6,10 @@ The Phase 1 architecture keeps external systems behind small modules so future w
 
 ## Boundaries
 
+### Configuration
+
+Runtime behavior is loaded from `config/app.json`, while secrets and deployment-only values come from environment variables. Docker Compose mounts the local `config` directory into the container, so behavior changes can be made by editing JSON and restarting the service instead of rebuilding the image.
+
 ### Scheduler
 
 Owns time-based execution. It receives a configured Asia/Bangkok market window and a snapshot interval. It starts the Finnhub trade stream while the window is open and triggers price snapshot jobs every 10 seconds by default.

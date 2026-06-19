@@ -11,9 +11,8 @@ The service currently supports Finnhub WebSocket Trades subscription configurati
 ```text
 .
 ├── config/
-│   ├── alerts.example.json
-│   ├── schedule.example.json
-│   └── watchlist.example.json
+│   ├── app.example.json
+│   └── app.json
 ├── docs/
 │   └── architecture.md
 ├── prisma/
@@ -69,7 +68,7 @@ The project uses a small modular architecture. Each external dependency sits beh
 - `src/main.ts`: application entry point. Loads config, creates the app, and starts it.
 - `src/app.ts`: composition root. Wires together scheduler, job, services, and providers.
 - `src/api`: HTTP API endpoints for direct local access.
-- `src/config`: reads environment variables and converts them into application config.
+- `src/config`: reads `config/app.json` plus secret environment variables and converts them into application config.
 - `src/scheduler`: owns Thailand-time market-window execution and second-based snapshot ticks.
 - `src/jobs`: owns use-case orchestration. `StockFetchJob` stores latest stream prices as snapshots.
 - `src/modules/trades`: owns Finnhub WebSocket Trades configuration for last-price updates.
@@ -79,7 +78,8 @@ The project uses a small modular architecture. Each external dependency sits beh
 - `src/db`: owns Prisma client setup.
 - `src/types`: shared domain types used between modules.
 - `prisma/schema.prisma`: database schema for symbols, snapshots, alert rules, and alert events.
-- `config/*.example.json`: examples for future editable schedule, watchlist, and alert-rule configuration.
+- `config/app.json`: editable runtime behavior config for server, schedule, watchlist, notifications, and price-drop alerts.
+- `config/app.example.json`: safe example config for new environments.
 
 ## Dependency Direction
 
@@ -163,7 +163,7 @@ During the configured window, the service keeps a Finnhub WebSocket Trades conne
 
 Telegram uses the official Bot API `sendMessage` method. A bot token and chat ID are required.
 
-When `TELEGRAM_NOTIFY_PRICE_UPDATES` is enabled, live Finnhub trade updates can trigger Telegram messages. To prevent floods on high-volume symbols such as `BINANCE:BTCUSDT`, messages are throttled per symbol by `TELEGRAM_PRICE_UPDATE_THROTTLE_SECONDS`, which defaults to 900 seconds.
+When `telegram.notifyPriceUpdates` is enabled in `config/app.json`, live Finnhub trade updates can trigger Telegram messages. To prevent floods on high-volume symbols such as `BINANCE:BTCUSDT`, messages are throttled per symbol by `telegram.priceUpdateThrottleSeconds`, which defaults to 900 seconds.
 
 Price-update messages include today's high and low from `daily_price_metrics` when that context is available. This does not change the notification throttle; the lookup runs only when a Telegram message is actually being sent.
 
@@ -249,28 +249,48 @@ Future notification provider:
 
 ## Configuration
 
-Copy `.env.example` to `.env` when implementation begins, then fill in required values:
+Runtime behavior is configured in `config/app.json`. Docker Compose mounts `./config` into the container, so changing watchlist symbols, schedule, notification throttles, or price-drop alert thresholds only requires a service restart, not an image rebuild.
+
+Secrets and deployment-only values remain in `.env`. Copy `.env.example` to `.env`, then fill in required values:
 
 ```text
 DATABASE_URL
-PORT
-HOST
-APP_TIMEZONE
-MARKET_WINDOW_START
-MARKET_WINDOW_END
-PRICE_SNAPSHOT_INTERVAL_SECONDS
-WATCHLIST_SYMBOLS
-TRADES_PROVIDER
+CONFIG_FILE
 FINNHUB_API_KEY
 TELEGRAM_BOT_TOKEN
 TELEGRAM_CHAT_ID
-TELEGRAM_NOTIFY_PRICE_UPDATES
-TELEGRAM_PRICE_UPDATE_THROTTLE_SECONDS
-PRICE_DROP_ALERT_ENABLED
-PRICE_DROP_ALERT_DEFAULT_PERCENT
-PRICE_DROP_ALERT_SYMBOL_PERCENTS
-PRICE_DROP_ALERT_COOLDOWN_SECONDS
-PRICE_DROP_ALERT_MIN_DAILY_SNAPSHOTS
+```
+
+Example behavior config:
+
+```json
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "timezone": "Asia/Bangkok",
+  "marketWindow": {
+    "start": "20:30",
+    "end": "03:00"
+  },
+  "snapshotIntervalSeconds": 10,
+  "watchlistSymbols": ["BINANCE:BTCUSDT", "BINANCE:ETHUSDT", "NVDA", "SPCX", "GOOGL", "AVGO", "FLNC", "INTC"],
+  "telegram": {
+    "notifyPriceUpdates": true,
+    "priceUpdateThrottleSeconds": 900
+  },
+  "priceDropAlert": {
+    "enabled": true,
+    "defaultDropPercent": 3,
+    "symbolDropPercents": {
+      "BINANCE:BTCUSDT": 5,
+      "BINANCE:ETHUSDT": 5
+    },
+    "cooldownSeconds": 900,
+    "minDailySnapshots": 5
+  }
+}
 ```
 
 ## Commands

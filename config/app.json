@@ -1,0 +1,37 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "timezone": "Asia/Bangkok",
+  "marketWindow": {
+    "start": "20:30",
+    "end": "03:00"
+  },
+  "snapshotIntervalSeconds": 10,
+  "watchlistSymbols": [
+    "BINANCE:BTCUSDT",
+    "BINANCE:ETHUSDT",
+    "NVDA",
+    "SPCX",
+    "GOOGL",
+    "AVGO",
+    "FLNC",
+    "INTC"
+  ],
+  "tradesProvider": "finnhub",
+  "telegram": {
+    "notifyPriceUpdates": true,
+    "priceUpdateThrottleSeconds": 900
+  },
+  "priceDropAlert": {
+    "enabled": true,
+    "defaultDropPercent": 3,
+    "symbolDropPercents": {
+      "BINANCE:BTCUSDT": 5,
+      "BINANCE:ETHUSDT": 5
+    },
+    "cooldownSeconds": 900,
+    "minDailySnapshots": 5
+  }
+}

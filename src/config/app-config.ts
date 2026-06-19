@@ -1,4 +1,6 @@
 import "dotenv/config";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 export interface TelegramConfig {
   botToken: string;
@@ -37,68 +39,120 @@ export interface AppConfig {
   priceDropAlert: PriceDropAlertConfig;
 }
 
+interface AppJsonConfig {
+  server?: {
+    port?: unknown;
+    host?: unknown;
+  };
+  timezone?: unknown;
+  marketWindow?: {
+    start?: unknown;
+    end?: unknown;
+  };
+  snapshotIntervalSeconds?: unknown;
+  watchlistSymbols?: unknown;
+  tradesProvider?: unknown;
+  telegram?: {
+    notifyPriceUpdates?: unknown;
+    priceUpdateThrottleSeconds?: unknown;
+  };
+  priceDropAlert?: {
+    enabled?: unknown;
+    defaultDropPercent?: unknown;
+    symbolDropPercents?: unknown;
+    cooldownSeconds?: unknown;
+    minDailySnapshots?: unknown;
+  };
+}
+
+const DEFAULT_CONFIG_FILE = "config/app.json";
+
 export function loadConfig(): AppConfig {
+  const jsonConfig = loadJsonConfig();
+
   return {
-    port: parsePort(process.env.PORT),
-    host: process.env.HOST ?? "127.0.0.1",
-    timezone: process.env.APP_TIMEZONE ?? "Asia/Bangkok",
+    port: parsePort(jsonConfig.server?.port, 3000),
+    host: parseString(jsonConfig.server?.host, "127.0.0.1"),
+    timezone: parseString(jsonConfig.timezone, "Asia/Bangkok"),
     marketWindow: {
-      start: process.env.MARKET_WINDOW_START ?? "20:30",
-      end: process.env.MARKET_WINDOW_END ?? "03:00",
-      snapshotIntervalSeconds: parseSnapshotIntervalSeconds()
+      start: parseString(jsonConfig.marketWindow?.start, "20:30"),
+      end: parseString(jsonConfig.marketWindow?.end, "03:00"),
+      snapshotIntervalSeconds: parsePositiveInteger(jsonConfig.snapshotIntervalSeconds, 900)
     },
-    watchlistSymbols: splitCsv(process.env.WATCHLIST_SYMBOLS, [
+    watchlistSymbols: parseStringArray(jsonConfig.watchlistSymbols, [
       "BINANCE:BTCUSDT",
       "BINANCE:ETHUSDT",
       "NVDA",
       "SPCX",
-      "GOOGL"
+      "GOOGL",
+      "AVGO",
+      "FLNC",
+      "INTC"
     ]),
-    tradesProvider: "finnhub",
+    tradesProvider: parseTradesProvider(jsonConfig.tradesProvider),
     finnhub: {
       apiKey: process.env.FINNHUB_API_KEY ?? ""
     },
     telegram: {
       botToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
       chatId: process.env.TELEGRAM_CHAT_ID ?? "",
-      notifyPriceUpdates: parseBoolean(process.env.TELEGRAM_NOTIFY_PRICE_UPDATES, true),
+      notifyPriceUpdates: parseBoolean(jsonConfig.telegram?.notifyPriceUpdates, true),
       priceUpdateThrottleSeconds: parsePositiveInteger(
-        process.env.TELEGRAM_PRICE_UPDATE_THROTTLE_SECONDS,
+        jsonConfig.telegram?.priceUpdateThrottleSeconds,
         900
       )
     },
     priceDropAlert: {
-      enabled: parseBoolean(process.env.PRICE_DROP_ALERT_ENABLED, false),
-      defaultDropPercent: parsePositiveNumber(process.env.PRICE_DROP_ALERT_DEFAULT_PERCENT, 3),
-      symbolDropPercents: parseSymbolPercentMap(process.env.PRICE_DROP_ALERT_SYMBOL_PERCENTS),
-      cooldownSeconds: parsePositiveInteger(process.env.PRICE_DROP_ALERT_COOLDOWN_SECONDS, 900),
-      minDailySnapshots: parsePositiveInteger(process.env.PRICE_DROP_ALERT_MIN_DAILY_SNAPSHOTS, 5)
+      enabled: parseBoolean(jsonConfig.priceDropAlert?.enabled, false),
+      defaultDropPercent: parsePositiveNumber(jsonConfig.priceDropAlert?.defaultDropPercent, 3),
+      symbolDropPercents: parseSymbolPercentMap(jsonConfig.priceDropAlert?.symbolDropPercents),
+      cooldownSeconds: parsePositiveInteger(jsonConfig.priceDropAlert?.cooldownSeconds, 900),
+      minDailySnapshots: parsePositiveInteger(jsonConfig.priceDropAlert?.minDailySnapshots, 5)
     }
   };
 }
 
-function splitCsv(value: string | undefined, fallback: string[] = []): string[] {
-  if (!value) {
+function loadJsonConfig(): AppJsonConfig {
+  const configPath = resolve(process.cwd(), process.env.CONFIG_FILE ?? DEFAULT_CONFIG_FILE);
+
+  try {
+    return JSON.parse(readFileSync(configPath, "utf8")) as AppJsonConfig;
+  } catch (error) {
+    throw new Error(`Failed to load app config from ${configPath}: ${String(error)}`);
+  }
+}
+
+function parseString(value: unknown, fallback: string): string {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  return fallback;
+}
+
+function parseStringArray(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) {
     return fallback;
   }
 
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+  const items = value.filter(
+    (item): item is string => typeof item === "string" && item.trim().length > 0
+  );
+
+  return items.length > 0 ? items.map((item) => item.trim()) : fallback;
 }
 
-function parsePort(value: string | undefined): number {
+function parsePort(value: unknown, fallback: number): number {
   const port = Number(value);
 
   if (Number.isInteger(port) && port > 0 && port <= 65535) {
     return port;
   }
 
-  return 3000;
+  return fallback;
 }
 
-function parsePositiveInteger(value: string | undefined, fallback: number): number {
+function parsePositiveInteger(value: unknown, fallback: number): number {
   const parsed = Number(value);
 
   if (Number.isInteger(parsed) && parsed > 0) {
@@ -108,7 +162,7 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
   return fallback;
 }
 
-function parsePositiveNumber(value: string | undefined, fallback: number): number {
+function parsePositiveNumber(value: unknown, fallback: number): number {
   const parsed = Number(value);
 
   if (Number.isFinite(parsed) && parsed > 0) {
@@ -118,43 +172,38 @@ function parsePositiveNumber(value: string | undefined, fallback: number): numbe
   return fallback;
 }
 
-function parseSymbolPercentMap(value: string | undefined): Record<string, number> {
-  if (!value) {
+function parseBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  return fallback;
+}
+
+function parseTradesProvider(value: unknown): "finnhub" {
+  if (value === "finnhub" || value === undefined) {
+    return "finnhub";
+  }
+
+  throw new Error(`Unsupported trades provider "${String(value)}".`);
+}
+
+function parseSymbolPercentMap(value: unknown): Record<string, number> {
+  if (!isRecord(value)) {
     return {};
   }
 
-  return value.split(",").reduce<Record<string, number>>((result, item) => {
-    const separatorIndex = item.lastIndexOf(":");
+  return Object.entries(value).reduce<Record<string, number>>((result, [symbol, percent]) => {
+    const parsedPercent = parsePositiveNumber(percent, 0);
 
-    if (separatorIndex <= 0) {
-      return result;
-    }
-
-    const normalizedSymbol = item.slice(0, separatorIndex).trim();
-    const percent = parsePositiveNumber(item.slice(separatorIndex + 1).trim(), 0);
-
-    if (normalizedSymbol && percent > 0) {
-      result[normalizedSymbol] = percent;
+    if (symbol.trim() && parsedPercent > 0) {
+      result[symbol.trim()] = parsedPercent;
     }
 
     return result;
   }, {});
 }
 
-function parseSnapshotIntervalSeconds(): number {
-  const seconds = parsePositiveInteger(process.env.PRICE_SNAPSHOT_INTERVAL_SECONDS, 0);
-
-  if (seconds > 0) {
-    return seconds;
-  }
-
-  return parsePositiveInteger(process.env.PRICE_SNAPSHOT_INTERVAL_MINUTES, 15) * 60;
-}
-
-function parseBoolean(value: string | undefined, fallback: boolean): boolean {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

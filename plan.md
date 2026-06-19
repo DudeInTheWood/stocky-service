@@ -90,7 +90,7 @@ Current implementation notes:
 
 * `StockFetchScheduler` reconciles the Finnhub stream once at startup and then every minute.
 * The stream is started while the market window is open and stopped outside the window.
-* Snapshot jobs use a timer based on `PRICE_SNAPSHOT_INTERVAL_SECONDS`.
+* Snapshot jobs use a timer based on `snapshotIntervalSeconds` in `config/app.json`.
 * If a previous snapshot run is still active, the next tick is skipped.
 * The default market window is `20:30` to `03:00` in `Asia/Bangkok`.
 
@@ -124,7 +124,7 @@ Requirements:
 
 Current implementation notes:
 
-* Watchlist symbols are loaded from the `WATCHLIST_SYMBOLS` environment variable.
+* Watchlist symbols are loaded from `config/app.json`.
 * The default symbols are `BINANCE:BTCUSDT`, `BINANCE:ETHUSDT`, `NVDA`, `SPCX`, `GOOGL`, `AVGO`, `FLNC`, and `INTC`.
 * Symbols are persisted automatically when quotes are stored; the app upserts by ticker.
 
@@ -252,9 +252,9 @@ Current implementation notes:
 * `TelegramNotificationProvider` can send startup, fetch-failure, alert, and price-update messages.
 * Startup notification is sent when the app starts and Telegram credentials are configured.
 * Live trade price updates can be sent immediately from `FinnhubTradeStreamService`.
-* Live price updates are controlled by `TELEGRAM_NOTIFY_PRICE_UPDATES`.
-* Live price updates are throttled per symbol by `TELEGRAM_PRICE_UPDATE_THROTTLE_SECONDS`.
-* `.env.example` documents a 900-second throttle default, and `loadConfig()` uses the same fallback if the variable is omitted.
+* Live price updates are controlled by `telegram.notifyPriceUpdates` in `config/app.json`.
+* Live price updates are throttled per symbol by `telegram.priceUpdateThrottleSeconds` in `config/app.json`.
+* `.env.example` only documents secrets and deployment values; runtime behavior lives in JSON config.
 * Price-drop alerts can notify immediately when live price falls below the cached daily low by a configured percentage, after minimum daily snapshot count and cooldown checks pass.
 
 ---
