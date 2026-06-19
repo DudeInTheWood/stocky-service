@@ -1,0 +1,91 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Symbol {
+  id                String             @id @default(uuid()) @db.Uuid
+  ticker            String             @unique @db.VarChar(20)
+  name              String?            @db.VarChar(255)
+  enabled           Boolean            @default(true)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  priceSnapshots    PriceSnapshot[]
+  dailyPriceMetrics DailyPriceMetric[]
+  alertRules        AlertRule[]
+
+  @@map("symbols")
+}
+
+model PriceSnapshot {
+  id              String       @id @default(uuid()) @db.Uuid
+  symbolId        String       @map("symbol_id") @db.Uuid
+  price           Decimal      @db.Decimal(18, 4)
+  currency        String       @db.VarChar(10)
+  marketTimestamp DateTime     @map("market_timestamp")
+  fetchedAt       DateTime     @default(now()) @map("fetched_at")
+  source          String       @db.VarChar(50)
+  symbol          Symbol       @relation(fields: [symbolId], references: [id])
+  alertEvents     AlertEvent[]
+
+  @@index([symbolId, fetchedAt])
+  @@map("price_snapshots")
+}
+
+model DailyPriceMetric {
+  id              String   @id @default(uuid()) @db.Uuid
+  symbolId        String   @map("symbol_id") @db.Uuid
+  date            DateTime @db.Date
+  openPrice       Decimal  @map("open_price") @db.Decimal(18, 4)
+  closePrice      Decimal  @map("close_price") @db.Decimal(18, 4)
+  highPrice       Decimal  @map("high_price") @db.Decimal(18, 4)
+  lowPrice        Decimal  @map("low_price") @db.Decimal(18, 4)
+  avgPrice        Decimal  @map("avg_price") @db.Decimal(18, 4)
+  snapshotCount   Int      @map("snapshot_count")
+  previousClose   Decimal? @map("previous_close") @db.Decimal(18, 4)
+  changeAmount    Decimal? @map("change_amount") @db.Decimal(18, 4)
+  changePercent   Decimal? @map("change_percent") @db.Decimal(10, 4)
+  firstSnapshotAt DateTime @map("first_snapshot_at")
+  lastSnapshotAt  DateTime @map("last_snapshot_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  symbol          Symbol   @relation(fields: [symbolId], references: [id])
+
+  @@unique([symbolId, date])
+  @@index([date])
+  @@index([symbolId, date])
+  @@map("daily_price_metrics")
+}
+
+model AlertRule {
+  id          String       @id @default(uuid()) @db.Uuid
+  symbolId    String       @map("symbol_id") @db.Uuid
+  buyBelow    Decimal?     @map("buy_below") @db.Decimal(18, 4)
+  sellAbove   Decimal?     @map("sell_above") @db.Decimal(18, 4)
+  enabled     Boolean      @default(true)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  symbol      Symbol       @relation(fields: [symbolId], references: [id])
+  alertEvents AlertEvent[]
+
+  @@index([symbolId, enabled])
+  @@map("alert_rules")
+}
+
+model AlertEvent {
+  id         String        @id @default(uuid()) @db.Uuid
+  ruleId     String        @map("rule_id") @db.Uuid
+  snapshotId String        @map("snapshot_id") @db.Uuid
+  message    String
+  sentAt     DateTime      @default(now()) @map("sent_at")
+  rule       AlertRule     @relation(fields: [ruleId], references: [id])
+  snapshot   PriceSnapshot @relation(fields: [snapshotId], references: [id])
+
+  @@index([ruleId, sentAt])
+  @@map("alert_events")
+}

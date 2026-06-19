@@ -1,0 +1,8 @@
+{
+  "timezone": "Asia/Bangkok",
+  "marketWindow": {
+    "start": "20:30",
+    "end": "03:00"
+  },
+  "snapshotIntervalSeconds": 10
+}

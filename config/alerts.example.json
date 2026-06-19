@@ -1,0 +1,10 @@
+{
+  "rules": [
+    {
+      "symbol": "AVGO",
+      "buyBelow": 220,
+      "sellAbove": 320,
+      "enabled": true
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stock-watcher-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stock_watcher
+      POSTGRES_USER: stock_watcher
+      POSTGRES_PASSWORD: stock_watcher
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  stock-watcher:
+    build: .
+    container_name: stock-watcher
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
