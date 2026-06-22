@@ -1,99 +1,12 @@
 # Stock Watcher
 
-Personal stock, ETF, and crypto monitoring service.
+A configurable stock, ETF, and crypto monitoring service.
 
-It collects live prices from Finnhub, stores scheduled price snapshots in PostgreSQL, calculates daily metrics, sends Telegram alerts, and can run a scheduled Ollama-backed AI analysis report. AI reports can be delivered to Telegram and Discord.
+The service can collect live market prices, store scheduled snapshots, calculate daily metrics, send notification alerts, and generate scheduled AI analysis reports from stored data. Notification delivery currently supports Telegram and Discord webhooks.
 
-For deeper design details, see [docs/architecture.md](docs/architecture.md).
+For implementation details, see [docs/architecture.md](docs/architecture.md).
 
-## Requirements
-
-- Node.js 22+
-- Docker and Docker Compose
-- PostgreSQL, usually started through Docker Compose
-- Finnhub API key
-- Ollama running locally when using AI reports
-- Telegram bot credentials if Telegram notifications are enabled
-- Discord webhook URL if Discord AI report notifications are enabled
-
-## Environment
-
-Copy `.env.example` to `.env` and fill the values you need.
-
-```text
-DATABASE_URL="postgresql://stock_watcher:stock_watcher@postgres:5432/stock_watcher?schema=public"
-CONFIG_FILE="config/app.json"
-FINNHUB_API_KEY=""
-TELEGRAM_BOT_TOKEN=""
-TELEGRAM_CHAT_ID=""
-DISCORD_WEBHOOK_URL=""
-```
-
-Notes:
-
-- Use `postgres` as the database host when running inside Docker Compose.
-- Use `127.0.0.1` as the database host for host-side commands.
-- `DISCORD_WEBHOOK_URL` overrides `discord.webhookUrl` from `config/app.json`.
-
-## Runtime Config
-
-Runtime behavior is configured in [config/app.json](config/app.json). A safe template lives in [config/app.example.json](config/app.example.json).
-
-Main sections:
-
-```json
-{
-  "server": {
-    "port": 3000,
-    "host": "0.0.0.0"
-  },
-  "timezone": "Asia/Bangkok",
-  "marketWindow": {
-    "start": "20:30",
-    "end": "03:00"
-  },
-  "snapshotIntervalSeconds": 10,
-  "watchlistSymbols": ["BINANCE:BTCUSDT", "BINANCE:ETHUSDT", "NVDA"],
-  "telegram": {
-    "notifyPriceUpdates": true,
-    "priceUpdateThrottleSeconds": 900
-  },
-  "discord": {
-    "webhookUrl": "",
-    "username": "Stocky AI"
-  },
-  "priceDropAlert": {
-    "enabled": true,
-    "defaultDropPercent": 3,
-    "symbolDropPercents": {
-      "BINANCE:BTCUSDT": 5
-    },
-    "cooldownSeconds": 900,
-    "minDailySnapshots": 5
-  },
-  "aiAnalysis": {
-    "enabled": true,
-    "reportTimes": ["20:00"],
-    "timezone": "Asia/Bangkok",
-    "provider": "ollama",
-    "baseUrl": "http://127.0.0.1:11434",
-    "model": "qwen3.5:4b",
-    "minDailySnapshots": 5,
-    "timeframes": ["1d"],
-    "notifyTelegram": true,
-    "notifyDiscord": false,
-    "maxSymbolsInReport": 8
-  }
-}
-```
-
-When the AI worker runs inside Docker and Ollama runs on the host machine, set:
-
-```json
-"baseUrl": "http://host.docker.internal:11434"
-```
-
-## Common Commands
+## Setup
 
 Install dependencies:
 
@@ -101,29 +14,60 @@ Install dependencies:
 npm install
 ```
 
-Run tests and type checks:
+Copy the environment template:
 
 ```bash
-npm test
-npm run lint
-npm run build
+cp .env.example .env
 ```
 
-Start the local Docker service stack:
+Fill in the required secrets for the providers you plan to use.
+
+```text
+DATABASE_URL
+CONFIG_FILE
+FINNHUB_API_KEY
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
+DISCORD_WEBHOOK_URL
+```
+
+Only `DATABASE_URL`, `CONFIG_FILE`, and `FINNHUB_API_KEY` are required for the core watcher. Telegram and Discord values are only needed when those notification paths are enabled.
+
+## Configuration
+
+Runtime behavior lives in [config/app.json](config/app.json). Use [config/app.example.json](config/app.example.json) as the template for new environments.
+
+The main config areas are:
+
+- `server`: HTTP host and port.
+- `timezone`: timezone used for schedules and daily metrics.
+- `marketWindow`: active monitoring window.
+- `snapshotIntervalSeconds`: how often to persist latest observed prices.
+- `watchlistSymbols`: symbols to monitor.
+- `telegram`: Telegram notification behavior.
+- `discord`: Discord webhook notification behavior.
+- `priceDropAlert`: live price-drop alert rules.
+- `aiAnalysis`: scheduled AI report behavior and LLM provider settings.
+
+Keep real tokens and webhook URLs in `.env` when possible. `DISCORD_WEBHOOK_URL` overrides `discord.webhookUrl` from JSON config.
+
+## Running Locally
+
+Start the local Docker stack:
 
 ```bash
 npm run local:start
 ```
 
-This starts Postgres, waits for it to be ready, applies Prisma migrations against `127.0.0.1:5432`, and starts the stock watcher container.
+This starts the database, applies migrations, and starts the watcher service.
 
-Stop the local Docker service stack:
+Stop the local Docker stack:
 
 ```bash
 npm run local:stop
 ```
 
-Run the stock watcher directly on the host:
+Run the watcher directly on the host:
 
 ```bash
 npm run dev
@@ -138,41 +82,53 @@ npm run dev:ai
 Run one AI report immediately:
 
 ```bash
-DATABASE_URL="postgresql://stock_watcher:stock_watcher@127.0.0.1:5432/stock_watcher?schema=public" npm run dev:ai:run
+npm run dev:ai:run
 ```
 
-## AI Report Notifications
+If you run host-side commands while the database is in Docker, make sure `DATABASE_URL` points to the host-published database address.
 
-Telegram AI reports use:
+## AI Reports
+
+AI analysis is a separate worker from the live price watcher. It reads stored database metrics, builds a compact analysis input, asks the configured LLM provider for a report, saves the result, and optionally sends the report to enabled notification providers.
+
+Important config fields:
+
+- `aiAnalysis.enabled`: enables scheduled AI reports.
+- `aiAnalysis.reportTimes`: report schedule times.
+- `aiAnalysis.baseUrl`: LLM provider base URL.
+- `aiAnalysis.model`: model name.
+- `aiAnalysis.notifyTelegram`: sends reports to Telegram.
+- `aiAnalysis.notifyDiscord`: sends reports to Discord.
+
+When the AI worker runs in Docker and the LLM provider runs on the host machine, use a host-reachable provider URL in config.
+
+## Notifications
+
+Telegram uses:
 
 ```text
 TELEGRAM_BOT_TOKEN
 TELEGRAM_CHAT_ID
-aiAnalysis.notifyTelegram=true
 ```
 
-Discord AI reports use either:
+Discord uses either:
 
 ```text
 DISCORD_WEBHOOK_URL
-aiAnalysis.notifyDiscord=true
 ```
 
-or:
+or the JSON config field:
 
 ```json
 {
   "discord": {
-    "webhookUrl": "https://discord.com/api/webhooks/...",
-    "username": "Stocky AI"
-  },
-  "aiAnalysis": {
-    "notifyDiscord": true
+    "webhookUrl": "",
+    "username": ""
   }
 }
 ```
 
-Prefer `.env` for real webhook values so secrets do not get committed.
+Prefer `.env` for real secrets.
 
 ## API
 
@@ -182,17 +138,10 @@ Health check:
 GET /health
 ```
 
-Finnhub WebSocket subscription preview:
+Trade stream subscription preview:
 
 ```http
 GET /api/trades/websocket
-```
-
-Example:
-
-```bash
-curl http://localhost:3000/health
-curl http://localhost:3000/api/trades/websocket
 ```
 
 ## Database
@@ -205,10 +154,12 @@ npm run prisma:migrate
 npm run prisma:deploy
 ```
 
-The schema stores:
+The database stores configured symbols, price snapshots, daily metrics, alert records, and saved AI reports.
 
-- configured symbols
-- price snapshots
-- daily price metrics
-- alert records
-- saved AI analysis reports
+## Quality Checks
+
+```bash
+npm test
+npm run lint
+npm run build
+```
