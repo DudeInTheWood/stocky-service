@@ -71,6 +71,14 @@ export class TelegramNotificationProvider implements NotificationProvider {
     );
   }
 
+  async notifyMessage(message: string): Promise<void> {
+    if (!this.isConfigured()) {
+      return;
+    }
+
+    await this.sendMessage(message);
+  }
+
   private async createPriceUpdateMessage(quote: Quote): Promise<string> {
     const lines = [
       "PRICE UPDATE",

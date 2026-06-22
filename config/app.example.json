@@ -33,5 +33,17 @@
     },
     "cooldownSeconds": 900,
     "minDailySnapshots": 5
+  },
+  "aiAnalysis": {
+    "enabled": true,
+    "reportTimes": ["20:00"],
+    "timezone": "Asia/Bangkok",
+    "provider": "ollama",
+    "baseUrl": "http://host.docker.internal:11434",
+    "model": "qwen2.5:7b",
+    "minDailySnapshots": 5,
+    "timeframes": ["1d"],
+    "notifyTelegram": true,
+    "maxSymbolsInReport": 8
   }
 }

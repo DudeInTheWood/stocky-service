@@ -18,8 +18,30 @@ model Symbol {
   priceSnapshots    PriceSnapshot[]
   dailyPriceMetrics DailyPriceMetric[]
   alertRules        AlertRule[]
+  aiAnalysisReports AiAnalysisReport[]
 
   @@map("symbols")
+}
+
+model AiAnalysisReport {
+  id         String   @id @default(uuid()) @db.Uuid
+  symbolId   String?  @map("symbol_id") @db.Uuid
+  ticker     String?  @db.VarChar(40)
+  reportType String   @map("report_type") @db.VarChar(40)
+  timeframe  String   @db.VarChar(20)
+  inputJson  Json     @map("input_json")
+  outputJson Json?    @map("output_json")
+  title      String   @db.VarChar(200)
+  summary    String
+  category   String?  @db.VarChar(30)
+  riskLevel  String?  @map("risk_level") @db.VarChar(30)
+  confidence Decimal? @db.Decimal(5, 4)
+  createdAt  DateTime @default(now()) @map("created_at")
+  symbol     Symbol?  @relation(fields: [symbolId], references: [id])
+
+  @@index([symbolId, timeframe, createdAt])
+  @@index([reportType, createdAt])
+  @@map("ai_analysis_reports")
 }
 
 model PriceSnapshot {

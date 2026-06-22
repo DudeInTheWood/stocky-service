@@ -17,6 +17,19 @@ export interface PriceDropAlertConfig {
   minDailySnapshots: number;
 }
 
+export interface AiAnalysisConfig {
+  enabled: boolean;
+  reportTimes: string[];
+  timezone: string;
+  provider: "ollama";
+  baseUrl: string;
+  model: string;
+  minDailySnapshots: number;
+  timeframes: string[];
+  notifyTelegram: boolean;
+  maxSymbolsInReport: number;
+}
+
 export interface FinnhubConfig {
   apiKey: string;
 }
@@ -37,6 +50,7 @@ export interface AppConfig {
   finnhub: FinnhubConfig;
   telegram: TelegramConfig;
   priceDropAlert: PriceDropAlertConfig;
+  aiAnalysis: AiAnalysisConfig;
 }
 
 interface AppJsonConfig {
@@ -62,6 +76,18 @@ interface AppJsonConfig {
     symbolDropPercents?: unknown;
     cooldownSeconds?: unknown;
     minDailySnapshots?: unknown;
+  };
+  aiAnalysis?: {
+    enabled?: unknown;
+    reportTimes?: unknown;
+    timezone?: unknown;
+    provider?: unknown;
+    baseUrl?: unknown;
+    model?: unknown;
+    minDailySnapshots?: unknown;
+    timeframes?: unknown;
+    notifyTelegram?: unknown;
+    maxSymbolsInReport?: unknown;
   };
 }
 
@@ -108,6 +134,21 @@ export function loadConfig(): AppConfig {
       symbolDropPercents: parseSymbolPercentMap(jsonConfig.priceDropAlert?.symbolDropPercents),
       cooldownSeconds: parsePositiveInteger(jsonConfig.priceDropAlert?.cooldownSeconds, 900),
       minDailySnapshots: parsePositiveInteger(jsonConfig.priceDropAlert?.minDailySnapshots, 5)
+    },
+    aiAnalysis: {
+      enabled: parseBoolean(jsonConfig.aiAnalysis?.enabled, false),
+      reportTimes: parseTimeArray(jsonConfig.aiAnalysis?.reportTimes, ["20:00"]),
+      timezone: parseString(
+        jsonConfig.aiAnalysis?.timezone,
+        parseString(jsonConfig.timezone, "Asia/Bangkok")
+      ),
+      provider: parseAiProvider(jsonConfig.aiAnalysis?.provider),
+      baseUrl: parseString(jsonConfig.aiAnalysis?.baseUrl, "http://host.docker.internal:11434"),
+      model: parseString(jsonConfig.aiAnalysis?.model, "qwen2.5:7b"),
+      minDailySnapshots: parsePositiveInteger(jsonConfig.aiAnalysis?.minDailySnapshots, 5),
+      timeframes: parseStringArray(jsonConfig.aiAnalysis?.timeframes, ["1d"]),
+      notifyTelegram: parseBoolean(jsonConfig.aiAnalysis?.notifyTelegram, true),
+      maxSymbolsInReport: parsePositiveInteger(jsonConfig.aiAnalysis?.maxSymbolsInReport, 8)
     }
   };
 }
@@ -186,6 +227,40 @@ function parseTradesProvider(value: unknown): "finnhub" {
   }
 
   throw new Error(`Unsupported trades provider "${String(value)}".`);
+}
+
+function parseAiProvider(value: unknown): "ollama" {
+  if (value === "ollama" || value === undefined) {
+    return "ollama";
+  }
+
+  throw new Error(`Unsupported AI provider "${String(value)}".`);
+}
+
+function parseTimeArray(value: unknown, fallback: string[]): string[] {
+  const times = parseStringArray(value, fallback).filter(isValidTime);
+
+  if (times.length === 0) {
+    return fallback;
+  }
+
+  return times;
+}
+
+function isValidTime(value: string): boolean {
+  const [hourText, minuteText] = value.split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+
+  return (
+    /^\d{2}:\d{2}$/.test(value) &&
+    Number.isInteger(hour) &&
+    Number.isInteger(minute) &&
+    hour >= 0 &&
+    hour <= 23 &&
+    minute >= 0 &&
+    minute <= 59
+  );
 }
 
 function parseSymbolPercentMap(value: unknown): Record<string, number> {

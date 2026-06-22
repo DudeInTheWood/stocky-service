@@ -25,5 +25,17 @@ services:
     volumes:
       - ./config:/app/config:ro
 
+  ai-worker:
+    build: .
+    container_name: stock-watcher-ai-worker
+    restart: unless-stopped
+    command: sh -c "npx prisma migrate deploy && npm run start:ai"
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config:ro
+
 volumes:
   postgres_data:
