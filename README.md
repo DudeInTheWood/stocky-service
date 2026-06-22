@@ -1,10 +1,10 @@
 # Stock Watcher
 
-Personal stock and ETF monitoring service based on the Phase 1 requirements in `plan.md`.
+Personal stock, ETF, and crypto monitoring service with live price snapshots, alerts, daily metrics, and scheduled AI analysis.
 
 ## Current Status
 
-The service currently supports Finnhub WebSocket Trades subscription configuration, scheduled stream management, throttled Telegram price-update notifications, throttled price snapshot persistence, daily price metrics, and configurable live price-drop alerts.
+The service currently supports Finnhub WebSocket Trades subscription configuration, scheduled stream management, throttled Telegram price-update notifications, throttled price snapshot persistence, daily price metrics, configurable live price-drop alerts, and a separate scheduled AI analysis worker backed by stored PostgreSQL data and Ollama.
 
 ## Project Structure
 
@@ -28,11 +28,21 @@ The service currently supports Finnhub WebSocket Trades subscription configurati
 │   ├── db/
 │   │   └── prisma.ts
 │   ├── jobs/
+│   │   ├── ai-analysis-report.job.ts
 │   │   └── stock-fetch.job.ts
 │   ├── modules/
 │   │   ├── alerts/
 │   │   │   ├── alert-rule.service.ts
 │   │   │   └── price-drop-alert.service.ts
+│   │   ├── analysis/
+│   │   │   ├── ai-analysis-prompt.ts
+│   │   │   ├── ai-analysis-report.service.ts
+│   │   │   ├── ai-report.formatter.ts
+│   │   │   ├── analysis-classifier.service.ts
+│   │   │   └── analysis-input.service.ts
+│   │   ├── llm/
+│   │   │   ├── llm.provider.ts
+│   │   │   └── ollama-llm.provider.ts
 │   │   ├── trades/
 │   │   │   ├── finnhub-trade-stream.service.ts
 │   │   │   └── finnhub-trades.provider.ts
@@ -47,11 +57,13 @@ The service currently supports Finnhub WebSocket Trades subscription configurati
 │   │       ├── daily-price-update-context.provider.ts
 │   │       └── price-snapshot.service.ts
 │   ├── scheduler/
+│   │   ├── ai-analysis.scheduler.ts
 │   │   └── stock-fetch.scheduler.ts
 │   ├── types/
 │   │   ├── alert.ts
 │   │   ├── trade.ts
 │   │   └── quote.ts
+│   ├── ai-main.ts
 │   ├── app.ts
 │   └── main.ts
 ├── docker-compose.yml
@@ -65,20 +77,23 @@ The service currently supports Finnhub WebSocket Trades subscription configurati
 
 The project uses a small modular architecture. Each external dependency sits behind an interface so the core workflow can stay stable when a provider changes.
 
-- `src/main.ts`: application entry point. Loads config, creates the app, and starts it.
+- `src/main.ts`: stock watcher entry point. Loads config, creates the app, and starts it.
+- `src/ai-main.ts`: AI worker entry point. Starts the scheduled AI analysis worker or runs one report immediately with `--run-once`.
 - `src/app.ts`: composition root. Wires together scheduler, job, services, and providers.
 - `src/api`: HTTP API endpoints for direct local access.
 - `src/config`: reads `config/app.json` plus secret environment variables and converts them into application config.
 - `src/scheduler`: owns Thailand-time market-window execution and second-based snapshot ticks.
-- `src/jobs`: owns use-case orchestration. `StockFetchJob` stores latest stream prices as snapshots.
+- `src/jobs`: owns use-case orchestration. `StockFetchJob` stores latest stream prices as snapshots; `AiAnalysisReportJob` builds and saves scheduled AI reports.
+- `src/modules/analysis`: builds compact DB-derived AI inputs, applies deterministic classification, formats reports, and persists AI report rows.
+- `src/modules/llm`: owns replaceable LLM provider interfaces. The current implementation calls Ollama `/api/chat`.
 - `src/modules/trades`: owns Finnhub WebSocket Trades configuration for last-price updates.
 - `src/modules/prices`: owns historical price snapshot persistence, daily metric calculation, and metric cache state.
 - `src/modules/alerts`: owns threshold alert scaffolding and live price-drop alert evaluation.
-- `src/modules/notifications`: owns outbound notifications. Telegram is the Phase 1 provider.
+- `src/modules/notifications`: owns outbound notifications. Telegram is the current provider.
 - `src/db`: owns Prisma client setup.
 - `src/types`: shared domain types used between modules.
-- `prisma/schema.prisma`: database schema for symbols, snapshots, alert rules, and alert events.
-- `config/app.json`: editable runtime behavior config for server, schedule, watchlist, notifications, and price-drop alerts.
+- `prisma/schema.prisma`: database schema for symbols, snapshots, daily metrics, alert records, and AI analysis reports.
+- `config/app.json`: editable runtime behavior config for server, schedule, watchlist, notifications, price-drop alerts, and AI analysis.
 - `config/app.example.json`: safe example config for new environments.
 
 ## Dependency Direction
@@ -101,11 +116,22 @@ main.ts
 FinnhubTradesProvider -> Finnhub WebSocket Trades
 FinnhubTradeStreamService -> latest trade price cache
 TelegramProvider     -> NotificationProvider
+
+ai-main.ts
+  -> AiAnalysisScheduler
+    -> AiAnalysisReportJob
+      -> AnalysisInputService
+      -> AnalysisClassifierService
+      -> AiAnalysisReportService
+        -> OllamaLlmProvider
+      -> TelegramNotificationProvider
 ```
 
 This keeps the app ready for future changes like storing trade updates, adding Discord notifications, or building dashboard/analytics features later.
 
-## Planned Phase 1 Runtime Flow
+The AI worker is intentionally separate from the live watcher. It reads existing database rows, prepares compact structured inputs, asks the LLM to explain those prepared facts, saves one `ai_analysis_reports` row, and optionally sends a Telegram report. It does not connect to Finnhub, run model calls inside the live stream, generate SQL, or change configuration.
+
+## Stock Watcher Runtime Flow
 
 ```text
 Scheduler
@@ -142,6 +168,38 @@ Application starts
   -> start scheduler
   -> start HTTP API
 ```
+
+## AI Analysis Worker
+
+The AI worker runs as a cold-path process with its own entry point:
+
+```bash
+npm run dev:ai
+```
+
+For a fast manual check, run one report immediately:
+
+```bash
+npm run dev:ai:run
+```
+
+Production commands after build:
+
+```bash
+npm run start
+npm run start:ai
+```
+
+The worker reads the latest `daily_price_metrics` for configured watchlist symbols, classifies each symbol with deterministic rules, sends the compact classified payload to Ollama, saves the report to `ai_analysis_reports`, and optionally sends the formatted summary to Telegram.
+
+Current local Ollama setup:
+
+```text
+Base URL: http://127.0.0.1:11434
+Model: qwen3.5:4b
+```
+
+When running inside Docker, use `http://host.docker.internal:11434` so the container can reach the host Ollama service.
 
 ## Scheduled Price Snapshots
 
@@ -220,13 +278,14 @@ GET /health
 
 ## Database Design
 
-The Prisma schema follows the Phase 1 plan:
+The Prisma schema includes:
 
 - `symbols`: configured stock and ETF tickers.
 - `price_snapshots`: append-only historical price records.
 - `daily_price_metrics`: one recalculated row per symbol per configured-timezone day.
 - `alert_rules`: buy-below and sell-above threshold rules.
 - `alert_events`: record of sent alerts, used later to prevent excessive duplicate notifications.
+- `ai_analysis_reports`: saved scheduled AI analysis inputs, model output, final summary, and report metadata.
 
 ## Provider Strategy
 
@@ -289,6 +348,18 @@ Example behavior config:
     },
     "cooldownSeconds": 900,
     "minDailySnapshots": 5
+  },
+  "aiAnalysis": {
+    "enabled": true,
+    "reportTimes": ["20:00"],
+    "timezone": "Asia/Bangkok",
+    "provider": "ollama",
+    "baseUrl": "http://127.0.0.1:11434",
+    "model": "qwen3.5:4b",
+    "minDailySnapshots": 5,
+    "timeframes": ["1d"],
+    "notifyTelegram": true,
+    "maxSymbolsInReport": 8
   }
 }
 ```
@@ -299,8 +370,11 @@ Example behavior config:
 npm install
 npm run build
 npm run dev
+npm run dev:ai
+npm run dev:ai:run
 npm run prisma:generate
 npm run prisma:migrate
+npm run prisma:deploy
 ```
 
 ## Docker
@@ -308,3 +382,5 @@ npm run prisma:migrate
 ```bash
 docker compose up --build
 ```
+
+For host-side local commands against the Docker database, the compose database host is published on `127.0.0.1:5432`. If `.env` uses `postgres` as the host for container-to-container networking, override `DATABASE_URL` or swap the hostname to `127.0.0.1` when running commands directly on the host.

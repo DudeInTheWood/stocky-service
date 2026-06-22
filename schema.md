@@ -11,6 +11,7 @@ The database stores:
 - Daily price metrics recalculated from snapshots for fast analysis.
 - Threshold alert rules for buy-below and sell-above signals.
 - Alert delivery history, so future alert logic can track sent notifications and avoid excessive duplicate messages.
+- AI analysis reports generated from stored daily metrics and compact DB-derived inputs.
 
 The app uses Prisma for schema management and type-safe access. The configured database is `stock_watcher` in Docker, using the `public` schema through `DATABASE_URL`.
 
@@ -23,7 +24,8 @@ The app uses Prisma for schema management and type-safe access. The configured d
 5. The daily metric service recalculates and upserts one `daily_price_metrics` row for the affected symbol and local calendar day.
 6. The in-memory daily metric cache is refreshed from the upserted metric.
 7. Live price-drop alerts compare Finnhub trade prices against cached daily metrics without adding per-tick database work.
-8. Generic buy/sell alert tables are already modeled, but generic alert rule evaluation is not implemented yet.
+8. The AI worker can read stored daily metrics, classify watchlist symbols, call Ollama, and save one scheduled report row to `ai_analysis_reports`.
+9. Generic buy/sell alert tables are already modeled, but generic alert rule evaluation is not implemented yet.
 
 ## Entity Relationship Overview
 
@@ -32,6 +34,7 @@ erDiagram
   symbols ||--o{ price_snapshots : has
   symbols ||--o{ daily_price_metrics : summarizes
   symbols ||--o{ alert_rules : has
+  symbols ||--o{ ai_analysis_reports : contextualizes
   alert_rules ||--o{ alert_events : records
   price_snapshots ||--o{ alert_events : triggers
 
@@ -89,6 +92,22 @@ erDiagram
     uuid snapshot_id FK
     text message
     timestamp sent_at
+  }
+
+  ai_analysis_reports {
+    uuid id PK
+    uuid symbol_id FK
+    varchar ticker
+    varchar report_type
+    varchar timeframe
+    jsonb input_json
+    jsonb output_json
+    varchar title
+    text summary
+    varchar category
+    varchar risk_level
+    decimal confidence
+    timestamp created_at
   }
 ```
 
@@ -201,6 +220,33 @@ Constraints and indexes:
 - Foreign key: `alert_events_snapshot_id_fkey`, `snapshot_id` references `price_snapshots.id`.
 - Index: `alert_events_rule_id_sent_at_idx` on `rule_id, sent_at`.
 
+### `ai_analysis_reports`
+
+Stores AI-generated analysis reports. The current implementation saves one row per scheduled report, with `symbol_id` and `ticker` left null. `input_json` contains the compact DB-derived classified input, and `output_json` contains the normalized LLM response.
+
+| Column | Type | Nullable | Default | Purpose |
+| --- | --- | --- | --- | --- |
+| `id` | `UUID` | No | Generated UUID | Primary key. |
+| `symbol_id` | `UUID` | Yes | None | Optional foreign key to `symbols.id` for future per-symbol reports. Current scheduled reports use `NULL`. |
+| `ticker` | `VARCHAR(40)` | Yes | None | Optional ticker for future per-symbol reports. Current scheduled reports use `NULL`. |
+| `report_type` | `VARCHAR(40)` | No | None | Report type, currently `pre_market_daily`. |
+| `timeframe` | `VARCHAR(20)` | No | None | Report timeframe, currently `1d`. |
+| `input_json` | `JSONB` | No | None | Compact DB-derived input passed to the LLM after deterministic classification. |
+| `output_json` | `JSONB` | Yes | None | Normalized structured LLM output. |
+| `title` | `VARCHAR(200)` | No | None | Report title. |
+| `summary` | `TEXT` | No | None | Final formatted report text used for Telegram and quick display. |
+| `category` | `VARCHAR(30)` | Yes | None | Optional top-level category. Current scheduled reports generally use `NULL`. |
+| `risk_level` | `VARCHAR(30)` | Yes | None | Optional top-level risk level. Current scheduled reports generally use `NULL`. |
+| `confidence` | `DECIMAL(5,4)` | Yes | None | Optional confidence value reserved for future use. |
+| `created_at` | `TIMESTAMP(3)` | No | `CURRENT_TIMESTAMP` | Row creation timestamp. |
+
+Constraints and indexes:
+
+- Primary key: `ai_analysis_reports_pkey` on `id`.
+- Foreign key: `ai_analysis_reports_symbol_id_fkey`, `symbol_id` references `symbols.id` with `ON DELETE SET NULL`.
+- Index: `ai_analysis_reports_symbol_id_timeframe_created_at_idx` on `symbol_id, timeframe, created_at`.
+- Index: `ai_analysis_reports_report_type_created_at_idx` on `report_type, created_at`.
+
 ## Relationships
 
 ### `symbols` to `price_snapshots`
@@ -253,11 +299,24 @@ Purpose: audit alert deliveries and support duplicate-notification policies.
 
 Purpose: connect each sent alert back to the exact observed price that triggered it.
 
+### `symbols` to `ai_analysis_reports`
+
+- Relationship: optional one-to-many.
+- One symbol can be associated with many future per-symbol AI reports.
+- Current scheduled reports are whole-watchlist reports and use `NULL` for `symbol_id`.
+- Delete behavior: `ON DELETE SET NULL`.
+- Update behavior: cascades if the symbol primary key changes.
+
+Purpose: preserve room for future single-symbol AI reports while supporting the current whole-report storage model.
+
 ## Current Implementation Notes
 
 - The database provider is PostgreSQL.
 - Prisma models are defined in `prisma/schema.prisma`.
 - The initial migration is `prisma/migrations/20260616000000_initial_schema/migration.sql`.
+- Daily metrics were added in `prisma/migrations/20260617000000_add_daily_price_metrics/migration.sql`.
+- AI analysis reports were added in `prisma/migrations/20260622000000_add_ai_analysis_reports/migration.sql`.
+- The AI worker writes scheduled report rows through Prisma raw SQL to avoid depending on regenerated Prisma client types during local iteration.
 - Docker Compose provisions PostgreSQL 16 Alpine with database/user/password all set to `stock_watcher`.
 - `price_snapshots` is the main active table today.
 - `daily_price_metrics` is recalculated after each successful snapshot insert.
