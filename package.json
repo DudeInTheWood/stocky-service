@@ -10,6 +10,8 @@
     "dev": "tsx watch src/main.ts",
     "dev:ai": "tsx watch src/ai-main.ts",
     "dev:ai:run": "tsx src/ai-main.ts --run-once",
+    "local:start": "bash scripts/start-local.sh",
+    "local:stop": "bash scripts/stop-local.sh",
     "start": "node dist/main.js",
     "start:ai": "node dist/ai-main.js",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",

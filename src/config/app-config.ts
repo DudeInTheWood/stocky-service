@@ -9,6 +9,11 @@ export interface TelegramConfig {
   priceUpdateThrottleSeconds: number;
 }
 
+export interface DiscordConfig {
+  webhookUrl: string;
+  username: string;
+}
+
 export interface PriceDropAlertConfig {
   enabled: boolean;
   defaultDropPercent: number;
@@ -27,6 +32,7 @@ export interface AiAnalysisConfig {
   minDailySnapshots: number;
   timeframes: string[];
   notifyTelegram: boolean;
+  notifyDiscord: boolean;
   maxSymbolsInReport: number;
 }
 
@@ -49,6 +55,7 @@ export interface AppConfig {
   tradesProvider: "finnhub";
   finnhub: FinnhubConfig;
   telegram: TelegramConfig;
+  discord: DiscordConfig;
   priceDropAlert: PriceDropAlertConfig;
   aiAnalysis: AiAnalysisConfig;
 }
@@ -70,6 +77,10 @@ interface AppJsonConfig {
     notifyPriceUpdates?: unknown;
     priceUpdateThrottleSeconds?: unknown;
   };
+  discord?: {
+    webhookUrl?: unknown;
+    username?: unknown;
+  };
   priceDropAlert?: {
     enabled?: unknown;
     defaultDropPercent?: unknown;
@@ -87,6 +98,7 @@ interface AppJsonConfig {
     minDailySnapshots?: unknown;
     timeframes?: unknown;
     notifyTelegram?: unknown;
+    notifyDiscord?: unknown;
     maxSymbolsInReport?: unknown;
   };
 }
@@ -128,6 +140,13 @@ export function loadConfig(): AppConfig {
         900
       )
     },
+    discord: {
+      webhookUrl: parseString(
+        process.env.DISCORD_WEBHOOK_URL,
+        parseString(jsonConfig.discord?.webhookUrl, "")
+      ),
+      username: parseString(jsonConfig.discord?.username, "Stocky AI")
+    },
     priceDropAlert: {
       enabled: parseBoolean(jsonConfig.priceDropAlert?.enabled, false),
       defaultDropPercent: parsePositiveNumber(jsonConfig.priceDropAlert?.defaultDropPercent, 3),
@@ -148,6 +167,7 @@ export function loadConfig(): AppConfig {
       minDailySnapshots: parsePositiveInteger(jsonConfig.aiAnalysis?.minDailySnapshots, 5),
       timeframes: parseStringArray(jsonConfig.aiAnalysis?.timeframes, ["1d"]),
       notifyTelegram: parseBoolean(jsonConfig.aiAnalysis?.notifyTelegram, true),
+      notifyDiscord: parseBoolean(jsonConfig.aiAnalysis?.notifyDiscord, false),
       maxSymbolsInReport: parsePositiveInteger(jsonConfig.aiAnalysis?.maxSymbolsInReport, 8)
     }
   };

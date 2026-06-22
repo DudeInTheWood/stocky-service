@@ -1,5 +1,5 @@
 import type { AiAnalysisConfig } from "../config/app-config.js";
-import type { TelegramNotificationProvider } from "../modules/notifications/telegram-notification.provider.js";
+import type { MessageNotificationProvider } from "../modules/notifications/message-notification.provider.js";
 import { AnalysisClassifierService } from "../modules/analysis/analysis-classifier.service.js";
 import { AnalysisInputService } from "../modules/analysis/analysis-input.service.js";
 import {
@@ -13,7 +13,7 @@ export interface AiAnalysisReportJobDependencies {
   inputService: AnalysisInputService;
   classifierService: AnalysisClassifierService;
   reportService: AiAnalysisReportService;
-  notificationProvider?: TelegramNotificationProvider;
+  notificationProviders?: MessageNotificationProvider[];
 }
 
 export class AiAnalysisReportJob {
@@ -39,7 +39,7 @@ export class AiAnalysisReportJob {
         confidence: null
       });
 
-      await this.notifyTelegram(telegramMessage);
+      await this.notifyReport(telegramMessage);
       console.log("No symbols available for AI analysis.");
       return;
     }
@@ -60,15 +60,17 @@ export class AiAnalysisReportJob {
       confidence: null
     });
 
-    await this.notifyTelegram(telegramMessage);
+    await this.notifyReport(telegramMessage);
     console.log(`AI analysis report saved: ${reportId}`);
   }
 
-  private async notifyTelegram(message: string): Promise<void> {
-    if (!this.dependencies.config.notifyTelegram || !this.dependencies.notificationProvider) {
+  private async notifyReport(message: string): Promise<void> {
+    if (!this.dependencies.notificationProviders?.length) {
       return;
     }
 
-    await this.dependencies.notificationProvider.notifyMessage(message);
+    await Promise.all(
+      this.dependencies.notificationProviders.map((provider) => provider.notifyMessage(message))
+    );
   }
 }

@@ -24,6 +24,10 @@
     "notifyPriceUpdates": true,
     "priceUpdateThrottleSeconds": 900
   },
+  "discord": {
+    "webhookUrl": "",
+    "username": "Stocky AI"
+  },
   "priceDropAlert": {
     "enabled": false,
     "defaultDropPercent": 3,
@@ -44,6 +48,7 @@
     "minDailySnapshots": 5,
     "timeframes": ["1d"],
     "notifyTelegram": true,
+    "notifyDiscord": false,
     "maxSymbolsInReport": 8
   }
 }

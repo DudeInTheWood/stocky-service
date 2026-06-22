@@ -69,13 +69,15 @@ PostgreSQL stores symbols, historical snapshots, daily metrics, alert rules, sen
 
 ### Notifications
 
-The `NotificationProvider` interface isolates delivery. The current provider targets Telegram Bot API. Discord webhook support can be added later behind the same boundary.
+The `NotificationProvider` interface isolates live stock watcher delivery. The current provider targets Telegram Bot API.
+
+AI report delivery uses a smaller `MessageNotificationProvider` boundary. The AI worker can fan out scheduled LLM reports to Telegram and Discord webhook providers based on `aiAnalysis.notifyTelegram` and `aiAnalysis.notifyDiscord`.
 
 Telegram live price-update notifications can optionally ask a `PriceUpdateContextProvider` for extra context. The current context provider reads the existing `daily_price_metrics` row for the symbol and current configured-timezone day, adding daily high, daily low, and snapshot count to the message without changing the notification throttle.
 
 Price-drop alerts are modeled separately from regular price-update notifications. `PriceDropAlertService` compares live prices against cached daily metrics, using configurable default and per-symbol drop percentages, minimum daily snapshot count, and alert cooldown.
 
-The AI worker reuses `TelegramNotificationProvider` through `notifyMessage()` for report delivery when `aiAnalysis.notifyTelegram` is enabled.
+Discord report delivery uses `discord.webhookUrl` from runtime config, with `DISCORD_WEBHOOK_URL` as an environment override. The optional `discord.username` value controls the webhook display name.
 
 ### LLM Provider
 

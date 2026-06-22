@@ -3,9 +3,12 @@ import type { AlertNotification } from "../../types/alert.js";
 import type { PriceDropAlertNotification } from "../../types/price-drop-alert.js";
 import type { Quote } from "../../types/quote.js";
 import type { NotificationProvider } from "./notification.provider.js";
+import type { MessageNotificationProvider } from "./message-notification.provider.js";
 import type { PriceUpdateContextProvider } from "./price-update-context.provider.js";
 
-export class TelegramNotificationProvider implements NotificationProvider {
+export class TelegramNotificationProvider
+  implements NotificationProvider, MessageNotificationProvider
+{
   private readonly apiBaseUrl = "https://api.telegram.org";
 
   constructor(

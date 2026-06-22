@@ -227,6 +227,12 @@ Price-update messages include today's high and low from `daily_price_metrics` wh
 
 Price-drop alerts are evaluated on live Finnhub trades using cached daily metrics. They can notify immediately when a live price falls below the cached daily low by a configured percent, after the minimum daily snapshot count is reached and the per-symbol cooldown allows it.
 
+## Discord AI Report Notifications
+
+Discord AI reports use an incoming webhook URL. Set `discord.webhookUrl` in `config/app.json`, or set `DISCORD_WEBHOOK_URL` in `.env` to keep the secret outside JSON. The `.env` value takes precedence when both are present. Then enable `aiAnalysis.notifyDiscord` in `config/app.json`.
+
+The Discord provider is currently used for scheduled AI analysis reports only. Live price updates and price-drop alerts still use Telegram.
+
 ## Current API
 
 The current API returns Finnhub WebSocket Trades connection details for the configured watchlist. This is Finnhub's "Trades - Last Price Updates" stream.
@@ -302,7 +308,7 @@ Primary notification provider:
 
 - Telegram Bot API
 
-Future notification provider:
+AI report notification providers:
 
 - Discord webhook
 
@@ -318,6 +324,7 @@ CONFIG_FILE
 FINNHUB_API_KEY
 TELEGRAM_BOT_TOKEN
 TELEGRAM_CHAT_ID
+DISCORD_WEBHOOK_URL
 ```
 
 Example behavior config:
@@ -339,6 +346,10 @@ Example behavior config:
     "notifyPriceUpdates": true,
     "priceUpdateThrottleSeconds": 900
   },
+  "discord": {
+    "webhookUrl": "",
+    "username": "Stocky AI"
+  },
   "priceDropAlert": {
     "enabled": true,
     "defaultDropPercent": 3,
@@ -359,6 +370,7 @@ Example behavior config:
     "minDailySnapshots": 5,
     "timeframes": ["1d"],
     "notifyTelegram": true,
+    "notifyDiscord": false,
     "maxSymbolsInReport": 8
   }
 }
@@ -372,6 +384,8 @@ npm run build
 npm run dev
 npm run dev:ai
 npm run dev:ai:run
+npm run local:start
+npm run local:stop
 npm run prisma:generate
 npm run prisma:migrate
 npm run prisma:deploy
@@ -384,3 +398,15 @@ docker compose up --build
 ```
 
 For host-side local commands against the Docker database, the compose database host is published on `127.0.0.1:5432`. If `.env` uses `postgres` as the host for container-to-container networking, override `DATABASE_URL` or swap the hostname to `127.0.0.1` when running commands directly on the host.
+
+For a quick local Docker startup, run:
+
+```bash
+npm run local:start
+```
+
+This starts Postgres, applies migrations against `127.0.0.1:5432`, and starts the stock watcher container. Stop the local services with:
+
+```bash
+npm run local:stop
+```

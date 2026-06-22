@@ -6,6 +6,8 @@ import { AiAnalysisReportService } from "./modules/analysis/ai-analysis-report.s
 import { AnalysisClassifierService } from "./modules/analysis/analysis-classifier.service.js";
 import { AnalysisInputService } from "./modules/analysis/analysis-input.service.js";
 import { OllamaLlmProvider } from "./modules/llm/ollama-llm.provider.js";
+import { DiscordNotificationProvider } from "./modules/notifications/discord-notification.provider.js";
+import type { MessageNotificationProvider } from "./modules/notifications/message-notification.provider.js";
 import { TelegramNotificationProvider } from "./modules/notifications/telegram-notification.provider.js";
 import { AiAnalysisScheduler } from "./scheduler/ai-analysis.scheduler.js";
 
@@ -45,15 +47,29 @@ function createAiAnalysisReportJob(config: AppConfig): AiAnalysisReportJob {
     maxSymbolsInReport: config.aiAnalysis.maxSymbolsInReport
   });
   const classifierService = new AnalysisClassifierService();
-  const notificationProvider = new TelegramNotificationProvider(config.telegram);
+  const notificationProviders = createAiReportNotificationProviders(config);
 
   return new AiAnalysisReportJob({
     config: config.aiAnalysis,
     inputService,
     classifierService,
     reportService,
-    notificationProvider
+    notificationProviders
   });
+}
+
+function createAiReportNotificationProviders(config: AppConfig): MessageNotificationProvider[] {
+  const providers: MessageNotificationProvider[] = [];
+
+  if (config.aiAnalysis.notifyTelegram) {
+    providers.push(new TelegramNotificationProvider(config.telegram));
+  }
+
+  if (config.aiAnalysis.notifyDiscord) {
+    providers.push(new DiscordNotificationProvider(config.discord));
+  }
+
+  return providers;
 }
 
 if (isMainModule()) {
