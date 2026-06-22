@@ -36,9 +36,10 @@ Coordinates one scheduled or immediate AI report run.
 3. Classify each symbol with deterministic code before calling the model.
 4. Send only the compact classified payload to the configured LLM provider.
 5. Normalize the returned JSON into report buckets: `focus`, `interesting`, `avoid`, and `neutral`.
-6. Format a short Telegram-friendly summary from the structured output.
-7. Save one `ai_analysis_reports` row for the scheduled report.
-8. Optionally send the summary through Telegram and Discord.
+6. Keep the notification selective by highlighting only the strongest daily candidates, with richer setup, evidence, watch-level, and risk details for selected symbols.
+7. Format a short Telegram-friendly summary from the structured output, while compressing ordinary neutral symbols into a compact line.
+8. Save one `ai_analysis_reports` row for the scheduled report.
+9. Optionally send the summary through Telegram and Discord.
 
 The LLM is treated as a narrator over prepared facts. It does not choose SQL, decide which symbols exist, write configuration, or run in the live price-stream path.
 

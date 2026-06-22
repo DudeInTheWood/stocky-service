@@ -9,9 +9,11 @@ export interface AnalysisSymbolInput {
   ticker: string;
   date: string;
   latestPrice: number;
+  previousClose: number | null;
   dailyHigh: number;
   dailyLow: number;
   dailyAverage: number;
+  rangePercent: number;
   changePercent: number | null;
   snapshotCount: number;
   positionInRange: RangePosition;
@@ -75,6 +77,7 @@ export class AnalysisInputService {
         const dailyHigh = Number(metric.highPrice);
         const dailyLow = Number(metric.lowPrice);
         const dailyAverage = Number(metric.avgPrice);
+        const previousClose = metric.previousClose === null ? null : Number(metric.previousClose);
 
         return [
           {
@@ -82,9 +85,11 @@ export class AnalysisInputService {
             ticker: symbol.ticker,
             date: metric.date.toISOString().slice(0, 10),
             latestPrice,
+            previousClose,
             dailyHigh,
             dailyLow,
             dailyAverage,
+            rangePercent: getRangePercent(dailyLow, dailyHigh, dailyAverage),
             changePercent: metric.changePercent === null ? null : Number(metric.changePercent),
             snapshotCount: metric.snapshotCount,
             positionInRange: getPositionInRange(latestPrice, dailyLow, dailyHigh),
@@ -128,11 +133,7 @@ function getPositionInRange(price: number, low: number, high: number): RangePosi
 }
 
 function getVolatilityLabel(low: number, high: number, average: number): VolatilityLabel {
-  if (average <= 0) {
-    return "extreme";
-  }
-
-  const rangePercent = ((high - low) / average) * 100;
+  const rangePercent = getRangePercent(low, high, average);
 
   if (rangePercent < 1) {
     return "low";
@@ -147,4 +148,12 @@ function getVolatilityLabel(low: number, high: number, average: number): Volatil
   }
 
   return "extreme";
+}
+
+function getRangePercent(low: number, high: number, average: number): number {
+  if (average <= 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Number((((high - low) / average) * 100).toFixed(4));
 }

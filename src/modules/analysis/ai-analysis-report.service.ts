@@ -10,6 +10,12 @@ export interface AiAnalysisOutputItem {
   ticker: string;
   reason: string;
   riskLevel: RiskLevel;
+  thesis: string;
+  setup: string;
+  evidence: string[];
+  watchLevels: string[];
+  risk: string;
+  actionNote: string;
 }
 
 export interface AiAnalysisNeutralItem {
@@ -126,7 +132,13 @@ function parseOutputItems(value: unknown): AiAnalysisOutputItem[] {
   return value.filter(isRecord).map((item) => ({
     ticker: parseString(item.ticker, "UNKNOWN"),
     reason: parseString(item.reason, "No reason provided."),
-    riskLevel: parseRiskLevel(item.riskLevel)
+    riskLevel: parseRiskLevel(item.riskLevel),
+    thesis: parseString(item.thesis, parseString(item.reason, "No thesis provided.")),
+    setup: parseString(item.setup, ""),
+    evidence: parseStringList(item.evidence),
+    watchLevels: parseStringList(item.watchLevels),
+    risk: parseString(item.risk, ""),
+    actionNote: parseString(item.actionNote, "")
   }));
 }
 
@@ -155,6 +167,16 @@ function parseString(value: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function parseStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => item.trim());
 }
 
 function truncate(value: string, length: number): string {

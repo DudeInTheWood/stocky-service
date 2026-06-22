@@ -6,7 +6,8 @@ const SYSTEM_MESSAGE = [
   "Use only the provided data.",
   "Do not provide financial advice.",
   "Do not recommend buy or sell.",
-  "Classify symbols as interesting, focus, avoid, or neutral.",
+  "Select only the symbols that are worth attention today.",
+  "Classify selected symbols as interesting, focus, avoid, or neutral.",
   "Return only valid JSON."
 ].join(" ");
 
@@ -25,7 +26,18 @@ export function buildAiAnalysisMessages(input: ClassifiedAnalysisInput): LlmMess
           "Do not claim certainty.",
           "Do not use outside news.",
           "Do not say buy or sell.",
-          "Explain why each symbol is interesting, avoid, focus, or neutral.",
+          "Do not use long entry, short entry, or position advice language.",
+          "Use categoryCandidate and reasons as hints, but make your own final bucket choice from the provided metrics.",
+          "Keep the alert short by selecting only the top 1-2 total symbols across focus, interesting, and avoid.",
+          "Prefer high-risk or unusually large-move symbols; omit normal movement.",
+          "Prefer the interesting bucket for asymmetric or unusual movement that deserves human review.",
+          "Put ordinary symbols in neutral, but include at most 2 neutral items.",
+          "Use exact ticker strings from the input.",
+          "For selected symbols, include concrete numbers from the input such as latestPrice, changePercent, dailyHigh, dailyLow, previousClose, rangePercent, and snapshotCount.",
+          "Explain the setup, what would confirm it, what would invalidate it, and the main risk.",
+          "Use one short sentence per text field.",
+          "Use at most 2 evidence items and at most 2 watchLevels items per selected symbol.",
+          "Set telegramMessage to an empty string because the app formats the message.",
           "Prefer short practical wording for Telegram."
         ],
         outputSchema: {
@@ -35,21 +47,39 @@ export function buildAiAnalysisMessages(input: ClassifiedAnalysisInput): LlmMess
             {
               ticker: "string",
               reason: "string",
-              riskLevel: "low | medium | high"
+              riskLevel: "low | medium | high",
+              thesis: "string",
+              setup: "string",
+              evidence: ["string"],
+              watchLevels: ["string"],
+              risk: "string",
+              actionNote: "string"
             }
           ],
           focus: [
             {
               ticker: "string",
               reason: "string",
-              riskLevel: "low | medium | high"
+              riskLevel: "low | medium | high",
+              thesis: "string",
+              setup: "string",
+              evidence: ["string"],
+              watchLevels: ["string"],
+              risk: "string",
+              actionNote: "string"
             }
           ],
           avoid: [
             {
               ticker: "string",
               reason: "string",
-              riskLevel: "low | medium | high"
+              riskLevel: "low | medium | high",
+              thesis: "string",
+              setup: "string",
+              evidence: ["string"],
+              watchLevels: ["string"],
+              risk: "string",
+              actionNote: "string"
             }
           ],
           neutral: [
@@ -58,7 +88,7 @@ export function buildAiAnalysisMessages(input: ClassifiedAnalysisInput): LlmMess
               reason: "string"
             }
           ],
-          telegramMessage: "string"
+          telegramMessage: ""
         },
         data: input
       })

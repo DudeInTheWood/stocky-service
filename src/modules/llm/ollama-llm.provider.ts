@@ -29,7 +29,7 @@ export class OllamaLlmProvider implements LlmProvider {
         think: false,
         options: {
           temperature: 0.2,
-          num_predict: 1200
+          num_predict: 2000
         }
       })
     });
