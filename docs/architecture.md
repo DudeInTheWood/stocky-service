@@ -38,7 +38,7 @@ Coordinates one scheduled or immediate AI report run.
 5. Normalize the returned JSON into report buckets: `focus`, `interesting`, `avoid`, and `neutral`.
 6. Format a short Telegram-friendly summary from the structured output.
 7. Save one `ai_analysis_reports` row for the scheduled report.
-8. Optionally send the summary through Telegram.
+8. Optionally send the summary through Telegram and Discord.
 
 The LLM is treated as a narrator over prepared facts. It does not choose SQL, decide which symbols exist, write configuration, or run in the live price-stream path.
 
@@ -106,4 +106,4 @@ npm run dev:ai
 npm run dev:ai:run
 ```
 
-The local AI setup currently targets Ollama at `http://127.0.0.1:11434` with model `qwen3.5:4b`. Docker containers should use `http://host.docker.internal:11434` to reach the host Ollama service.
+The Docker local AI setup targets host Ollama at `http://host.docker.internal:11434` with model `qwen3.5:4b`. Host-side AI commands can use `http://127.0.0.1:11434` when they run outside Docker.

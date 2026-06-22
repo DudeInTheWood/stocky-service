@@ -26,8 +26,8 @@ done
 echo "Applying database migrations..."
 DATABASE_URL="$HOST_DATABASE_URL" npm run prisma:deploy
 
-echo "Starting stock watcher..."
-docker compose up -d stock-watcher
+echo "Starting stock watcher and AI worker..."
+docker compose up -d stock-watcher ai-worker
 
 echo "Local services are running:"
 docker compose ps

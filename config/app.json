@@ -43,7 +43,7 @@
     "reportTimes": ["20:00"],
     "timezone": "Asia/Bangkok",
     "provider": "ollama",
-    "baseUrl": "http://127.0.0.1:11434",
+    "baseUrl": "http://host.docker.internal:11434",
     "model": "qwen3.5:4b",
     "minDailySnapshots": 5,
     "timeframes": ["1d"],

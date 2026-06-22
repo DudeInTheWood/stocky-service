@@ -59,7 +59,8 @@ Start the local Docker stack:
 npm run local:start
 ```
 
-This starts the database, applies migrations, and starts the watcher service.
+This starts the database, applies migrations, and starts both runtime services:
+the price watcher and the scheduled AI report worker.
 
 Stop the local Docker stack:
 
@@ -87,6 +88,18 @@ npm run dev:ai:run
 
 If you run host-side commands while the database is in Docker, make sure `DATABASE_URL` points to the host-published database address.
 
+For Docker-based local runs, Ollama on your host machine should be configured as:
+
+```text
+http://host.docker.internal:11434
+```
+
+For host-side `npm run dev:ai` or `npm run dev:ai:run`, Ollama can use:
+
+```text
+http://127.0.0.1:11434
+```
+
 ## AI Reports
 
 AI analysis is a separate worker from the live price watcher. It reads stored database metrics, builds a compact analysis input, asks the configured LLM provider for a report, saves the result, and optionally sends the report to enabled notification providers.
@@ -100,7 +113,7 @@ Important config fields:
 - `aiAnalysis.notifyTelegram`: sends reports to Telegram.
 - `aiAnalysis.notifyDiscord`: sends reports to Discord.
 
-When the AI worker runs in Docker and the LLM provider runs on the host machine, use a host-reachable provider URL in config.
+When the AI worker runs in Docker and the LLM provider runs on the host machine, use `http://host.docker.internal:11434` in config. Inside a container, `127.0.0.1` points at the container itself rather than the host.
 
 ## Notifications
 
