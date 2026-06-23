@@ -120,7 +120,7 @@ Stores the symbols that the app knows about. Symbols are upserted automatically 
 | Column | Type | Nullable | Default | Purpose |
 | --- | --- | --- | --- | --- |
 | `id` | `UUID` | No | Generated UUID | Primary key. |
-| `ticker` | `VARCHAR(20)` | No | None | Unique stock, ETF, or crypto ticker used by the price provider, for example `NVDA` or `BINANCE:BTCUSDT`. |
+| `ticker` | `VARCHAR(20)` | No | None | Unique stock or ETF ticker used by the price provider, for example `NVDA` or `SPCX`. |
 | `name` | `VARCHAR(255)` | Yes | None | Optional human-readable symbol name. Currently not populated by the app. |
 | `enabled` | `BOOLEAN` | No | `true` | Marks whether the symbol is active. Current snapshot persistence sets this to `true` on upsert. |
 | `created_at` | `TIMESTAMP(3)` | No | `CURRENT_TIMESTAMP` | Row creation timestamp. |

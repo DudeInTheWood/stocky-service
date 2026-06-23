@@ -125,7 +125,7 @@ Requirements:
 Current implementation notes:
 
 * Watchlist symbols are loaded from `config/app.json`.
-* The default symbols are `BINANCE:BTCUSDT`, `BINANCE:ETHUSDT`, `NVDA`, `SPCX`, `GOOGL`, `AVGO`, `FLNC`, and `INTC`.
+* The default symbols are `NVDA`, `SPCX`, `GOOGL`, `AVGO`, `FLNC`, and `INTC`.
 * Symbols are persisted automatically when quotes are stored; the app upserts by ticker.
 
 ---

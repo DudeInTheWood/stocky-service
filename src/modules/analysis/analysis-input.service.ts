@@ -1,4 +1,11 @@
 import { prisma } from "../../db/prisma.js";
+import {
+  buildPriceFactor,
+  type FundamentalFactor,
+  type NewsFactor,
+  type PriceFactor,
+  type MarketAttentionFactorService
+} from "../market-context/market-attention-factor.service.js";
 
 export type RangePosition = "near_low" | "middle" | "near_high" | "flat";
 export type VolatilityLabel = "low" | "medium" | "high" | "extreme";
@@ -19,10 +26,15 @@ export interface AnalysisSymbolInput {
   positionInRange: RangePosition;
   volatilityLabel: VolatilityLabel;
   dataQuality: DataQuality;
+  priceFactor: PriceFactor;
+  newsFactor?: NewsFactor;
+  fundamentalFactor?: FundamentalFactor;
+  attentionScore: number;
+  attentionReasons: string[];
 }
 
 export interface AnalysisInput {
-  reportType: "pre_market_daily";
+  reportType: "pre_market_attention";
   timeframe: "1d";
   timezone: string;
   generatedAt: string;
@@ -35,6 +47,12 @@ export interface AnalysisInputServiceOptions {
   watchlistSymbols: string[];
   minDailySnapshots: number;
   maxSymbolsInReport: number;
+  includeNewsFactors: boolean;
+  includeFundamentalFactors: boolean;
+  newsLookbackDays: number;
+  maxNewsItemsPerSymbol: number;
+  marketContextProvider: string;
+  attentionFactorService?: MarketAttentionFactorService;
 }
 
 export class AnalysisInputService {
@@ -62,7 +80,7 @@ export class AnalysisInputService {
       this.options.watchlistSymbols.map((ticker, index) => [ticker, index] as const)
     );
 
-    const symbols = symbolRows
+    const symbolInputs = symbolRows
       .sort((left, right) => {
         return (symbolOrder.get(left.ticker) ?? 0) - (symbolOrder.get(right.ticker) ?? 0);
       })
@@ -78,6 +96,16 @@ export class AnalysisInputService {
         const dailyLow = Number(metric.lowPrice);
         const dailyAverage = Number(metric.avgPrice);
         const previousClose = metric.previousClose === null ? null : Number(metric.previousClose);
+        const positionInRange = getPositionInRange(latestPrice, dailyLow, dailyHigh);
+        const volatilityLabel = getVolatilityLabel(dailyLow, dailyHigh, dailyAverage);
+        const dataQuality =
+          metric.snapshotCount >= this.options.minDailySnapshots ? "ok" : "too_few_snapshots";
+        const priceFactor = buildPriceFactor({
+          changePercent: metric.changePercent === null ? null : Number(metric.changePercent),
+          positionInRange,
+          volatilityLabel,
+          dataQuality
+        });
 
         return [
           {
@@ -92,17 +120,48 @@ export class AnalysisInputService {
             rangePercent: getRangePercent(dailyLow, dailyHigh, dailyAverage),
             changePercent: metric.changePercent === null ? null : Number(metric.changePercent),
             snapshotCount: metric.snapshotCount,
-            positionInRange: getPositionInRange(latestPrice, dailyLow, dailyHigh),
-            volatilityLabel: getVolatilityLabel(dailyLow, dailyHigh, dailyAverage),
-            dataQuality:
-              metric.snapshotCount >= this.options.minDailySnapshots ? "ok" : "too_few_snapshots"
+            positionInRange,
+            volatilityLabel,
+            dataQuality,
+            priceFactor,
+            attentionScore: priceFactor.score,
+            attentionReasons: priceFactor.reasons
           }
         ];
       })
       .slice(0, this.options.maxSymbolsInReport);
+    const factorsBySymbolId = await this.options.attentionFactorService?.buildFactorsForSymbols(
+      symbolInputs.map((symbol) => symbol.symbolId),
+      {
+        includeNewsFactors: this.options.includeNewsFactors,
+        includeFundamentalFactors: this.options.includeFundamentalFactors,
+        newsLookbackDays: this.options.newsLookbackDays,
+        maxNewsItemsPerSymbol: this.options.maxNewsItemsPerSymbol,
+        provider: this.options.marketContextProvider
+      }
+    );
+    const symbols = symbolInputs.map((symbol) => {
+      const factors = factorsBySymbolId?.get(symbol.symbolId);
+      const attentionScore =
+        symbol.priceFactor.score +
+        (factors?.newsFactor?.score ?? 0) +
+        (factors?.fundamentalFactor?.score ?? 0);
+
+      return {
+        ...symbol,
+        newsFactor: factors?.newsFactor,
+        fundamentalFactor: factors?.fundamentalFactor,
+        attentionScore: Math.min(attentionScore, 100),
+        attentionReasons: [
+          ...symbol.priceFactor.reasons,
+          ...(factors?.newsFactor?.reasons ?? []),
+          ...(factors?.fundamentalFactor?.reasons ?? [])
+        ]
+      };
+    });
 
     return {
-      reportType: "pre_market_daily",
+      reportType: "pre_market_attention",
       timeframe: "1d",
       timezone: this.options.timezone,
       generatedAt: new Date().toISOString(),
@@ -112,7 +171,7 @@ export class AnalysisInputService {
   }
 }
 
-function getPositionInRange(price: number, low: number, high: number): RangePosition {
+export function getPositionInRange(price: number, low: number, high: number): RangePosition {
   const range = high - low;
 
   if (range <= 0) {
@@ -132,7 +191,7 @@ function getPositionInRange(price: number, low: number, high: number): RangePosi
   return "middle";
 }
 
-function getVolatilityLabel(low: number, high: number, average: number): VolatilityLabel {
+export function getVolatilityLabel(low: number, high: number, average: number): VolatilityLabel {
   const rangePercent = getRangePercent(low, high, average);
 
   if (rangePercent < 1) {
@@ -150,7 +209,7 @@ function getVolatilityLabel(low: number, high: number, average: number): Volatil
   return "extreme";
 }
 
-function getRangePercent(low: number, high: number, average: number): number {
+export function getRangePercent(low: number, high: number, average: number): number {
   if (average <= 0) {
     return Number.POSITIVE_INFINITY;
   }

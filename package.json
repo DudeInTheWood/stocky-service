@@ -10,6 +10,8 @@
     "dev": "tsx watch src/main.ts",
     "dev:ai": "tsx watch src/ai-main.ts",
     "dev:ai:run": "tsx src/ai-main.ts --run-once",
+    "dev:context:run": "tsx src/ai-main.ts --refresh-context-once",
+    "dev:morning:run": "tsx src/ai-main.ts --run-morning-once",
     "local:start": "bash scripts/start-local.sh",
     "local:stop": "bash scripts/stop-local.sh",
     "start": "node dist/main.js",

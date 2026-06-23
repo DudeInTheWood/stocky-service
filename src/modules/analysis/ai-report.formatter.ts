@@ -7,8 +7,8 @@ const MAX_DETAILED_ITEMS = 2;
 export function formatAiTelegramReport(output: AiAnalysisOutput, reportTime: string): string {
   const selectedItems = selectDetailedItems(output);
 
-  const lines = [
-    `${output.title || "Pre-market Daily Focus"} - ${reportTime} GMT+7`,
+const lines = [
+    `${output.title || "Pre-market Attention Report"} - ${reportTime} GMT+7`,
     "",
     output.overallSummary,
     "",
@@ -22,9 +22,9 @@ export function formatAiTelegramReport(output: AiAnalysisOutput, reportTime: str
 
 function selectDetailedItems(output: AiAnalysisOutput): AiAnalysisOutputItem[] {
   const categorizedItems = [
-    ...output.avoid.map((item) => ({ ...item, section: "Avoid chasing" })),
-    ...output.interesting.map((item) => ({ ...item, section: "Interesting" })),
-    ...output.focus.map((item) => ({ ...item, section: "Focus" }))
+    ...output.avoidChasing.map((item) => ({ ...item, section: "Avoid chasing" })),
+    ...output.highAttention.map((item) => ({ ...item, section: "High attention" })),
+    ...output.watchlist.map((item) => ({ ...item, section: "Watchlist" }))
   ];
   const highRiskItems = categorizedItems.filter((item) => item.riskLevel === "high");
   const candidates = highRiskItems.length > 0 ? highRiskItems : categorizedItems;
@@ -34,17 +34,18 @@ function selectDetailedItems(output: AiAnalysisOutput): AiAnalysisOutputItem[] {
 
 function formatSelectedItems(items: AiAnalysisOutputItem[]): string[] {
   if (items.length === 0) {
-    return ["No high-risk watchlist names stood out from the stored metrics.", ""];
+    return ["No watchlist names stood out from the stored attention factors.", ""];
   }
 
   return [
-    "High-risk watch",
+    "Attention watch",
     ...items.flatMap((item) => [
       `${item.ticker} (${item.riskLevel} risk)`,
-      `- Why: ${item.thesis || item.reason}`,
+      `- Why: ${item.reason}`,
+      ...formatList("Drivers", item.attentionDrivers),
       ...formatList("Evidence", item.evidence.slice(0, 2)),
       ...formatList("Watch", item.watchLevels.slice(0, 2)),
-      ...formatOptionalLine("Risk", item.risk),
+      ...formatOptionalLine("Context", item.riskContext),
       ""
     ]),
     ""
@@ -54,10 +55,10 @@ function formatSelectedItems(items: AiAnalysisOutputItem[]): string[] {
 function formatQuietList(output: AiAnalysisOutput, selectedItems: AiAnalysisOutputItem[]): string[] {
   const selectedTickers = new Set(selectedItems.map((item) => item.ticker));
   const quietTickers = [
-    ...output.focus,
-    ...output.interesting,
-    ...output.avoid,
-    ...output.neutral
+    ...output.watchlist,
+    ...output.highAttention,
+    ...output.avoidChasing,
+    ...output.lowSignal
   ]
     .map((item) => item.ticker)
     .filter((ticker) => !selectedTickers.has(ticker))
@@ -67,7 +68,7 @@ function formatQuietList(output: AiAnalysisOutput, selectedItems: AiAnalysisOutp
     return [];
   }
 
-  return [`Quiet/omitted: ${quietTickers.join(", ")}`, ""];
+  return [`Low-signal/omitted: ${quietTickers.join(", ")}`, ""];
 }
 
 function formatOptionalLine(label: string, value: string): string[] {

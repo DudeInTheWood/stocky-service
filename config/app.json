@@ -10,8 +10,6 @@
   },
   "snapshotIntervalSeconds": 10,
   "watchlistSymbols": [
-    "BINANCE:BTCUSDT",
-    "BINANCE:ETHUSDT",
     "NVDA",
     "SPCX",
     "GOOGL",
@@ -31,10 +29,7 @@
   "priceDropAlert": {
     "enabled": true,
     "defaultDropPercent": 3,
-    "symbolDropPercents": {
-      "BINANCE:BTCUSDT": 5,
-      "BINANCE:ETHUSDT": 5
-    },
+    "symbolDropPercents": {},
     "cooldownSeconds": 900,
     "minDailySnapshots": 5
   },
@@ -49,6 +44,27 @@
     "timeframes": ["1d"],
     "notifyTelegram": true,
     "notifyDiscord": true,
-    "maxSymbolsInReport": 8
+    "maxSymbolsInReport": 8,
+    "includeNewsFactors": true,
+    "includeFundamentalFactors": true
+  },
+  "marketContext": {
+    "enabled": true,
+    "timezone": "Asia/Bangkok",
+    "refreshTimes": ["19:30"],
+    "newsLookbackDays": 2,
+    "maxNewsItemsPerSymbol": 5,
+    "fetchBasicFinancials": true,
+    "basicFinancialsRefreshHours": 24,
+    "provider": "finnhub"
+  },
+  "morningReport": {
+    "enabled": true,
+    "reportTimes": ["10:00"],
+    "timezone": "Asia/Bangkok",
+    "newsLookbackDays": 1,
+    "maxNewsItemsPerSymbol": 3,
+    "refreshMarketContextBeforeRun": true,
+    "notifyDiscord": true
   }
 }

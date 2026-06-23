@@ -34,6 +34,8 @@ export interface AiAnalysisConfig {
   notifyTelegram: boolean;
   notifyDiscord: boolean;
   maxSymbolsInReport: number;
+  includeNewsFactors: boolean;
+  includeFundamentalFactors: boolean;
 }
 
 export interface FinnhubConfig {
@@ -44,6 +46,27 @@ export interface MarketWindowConfig {
   start: string;
   end: string;
   snapshotIntervalSeconds: number;
+}
+
+export interface MarketContextConfig {
+  enabled: boolean;
+  timezone: string;
+  refreshTimes: string[];
+  newsLookbackDays: number;
+  maxNewsItemsPerSymbol: number;
+  fetchBasicFinancials: boolean;
+  basicFinancialsRefreshHours: number;
+  provider: "finnhub";
+}
+
+export interface MorningReportConfig {
+  enabled: boolean;
+  reportTimes: string[];
+  timezone: string;
+  newsLookbackDays: number;
+  maxNewsItemsPerSymbol: number;
+  refreshMarketContextBeforeRun: boolean;
+  notifyDiscord: boolean;
 }
 
 export interface AppConfig {
@@ -58,6 +81,8 @@ export interface AppConfig {
   discord: DiscordConfig;
   priceDropAlert: PriceDropAlertConfig;
   aiAnalysis: AiAnalysisConfig;
+  marketContext: MarketContextConfig;
+  morningReport: MorningReportConfig;
 }
 
 interface AppJsonConfig {
@@ -100,6 +125,27 @@ interface AppJsonConfig {
     notifyTelegram?: unknown;
     notifyDiscord?: unknown;
     maxSymbolsInReport?: unknown;
+    includeNewsFactors?: unknown;
+    includeFundamentalFactors?: unknown;
+  };
+  marketContext?: {
+    enabled?: unknown;
+    timezone?: unknown;
+    refreshTimes?: unknown;
+    newsLookbackDays?: unknown;
+    maxNewsItemsPerSymbol?: unknown;
+    fetchBasicFinancials?: unknown;
+    basicFinancialsRefreshHours?: unknown;
+    provider?: unknown;
+  };
+  morningReport?: {
+    enabled?: unknown;
+    reportTimes?: unknown;
+    timezone?: unknown;
+    newsLookbackDays?: unknown;
+    maxNewsItemsPerSymbol?: unknown;
+    refreshMarketContextBeforeRun?: unknown;
+    notifyDiscord?: unknown;
   };
 }
 
@@ -118,8 +164,6 @@ export function loadConfig(): AppConfig {
       snapshotIntervalSeconds: parsePositiveInteger(jsonConfig.snapshotIntervalSeconds, 900)
     },
     watchlistSymbols: parseStringArray(jsonConfig.watchlistSymbols, [
-      "BINANCE:BTCUSDT",
-      "BINANCE:ETHUSDT",
       "NVDA",
       "SPCX",
       "GOOGL",
@@ -168,7 +212,49 @@ export function loadConfig(): AppConfig {
       timeframes: parseStringArray(jsonConfig.aiAnalysis?.timeframes, ["1d"]),
       notifyTelegram: parseBoolean(jsonConfig.aiAnalysis?.notifyTelegram, true),
       notifyDiscord: parseBoolean(jsonConfig.aiAnalysis?.notifyDiscord, false),
-      maxSymbolsInReport: parsePositiveInteger(jsonConfig.aiAnalysis?.maxSymbolsInReport, 8)
+      maxSymbolsInReport: parsePositiveInteger(jsonConfig.aiAnalysis?.maxSymbolsInReport, 8),
+      includeNewsFactors: parseBoolean(jsonConfig.aiAnalysis?.includeNewsFactors, true),
+      includeFundamentalFactors: parseBoolean(
+        jsonConfig.aiAnalysis?.includeFundamentalFactors,
+        true
+      )
+    },
+    marketContext: {
+      enabled: parseBoolean(jsonConfig.marketContext?.enabled, false),
+      timezone: parseString(
+        jsonConfig.marketContext?.timezone,
+        parseString(jsonConfig.timezone, "Asia/Bangkok")
+      ),
+      refreshTimes: parseTimeArray(jsonConfig.marketContext?.refreshTimes, ["19:30"]),
+      newsLookbackDays: parsePositiveInteger(jsonConfig.marketContext?.newsLookbackDays, 2),
+      maxNewsItemsPerSymbol: parsePositiveInteger(
+        jsonConfig.marketContext?.maxNewsItemsPerSymbol,
+        5
+      ),
+      fetchBasicFinancials: parseBoolean(jsonConfig.marketContext?.fetchBasicFinancials, true),
+      basicFinancialsRefreshHours: parsePositiveInteger(
+        jsonConfig.marketContext?.basicFinancialsRefreshHours,
+        24
+      ),
+      provider: parseMarketContextProvider(jsonConfig.marketContext?.provider)
+    },
+    morningReport: {
+      enabled: parseBoolean(jsonConfig.morningReport?.enabled, true),
+      reportTimes: parseTimeArray(jsonConfig.morningReport?.reportTimes, ["10:00"]),
+      timezone: parseString(
+        jsonConfig.morningReport?.timezone,
+        parseString(jsonConfig.timezone, "Asia/Bangkok")
+      ),
+      newsLookbackDays: parsePositiveInteger(jsonConfig.morningReport?.newsLookbackDays, 1),
+      maxNewsItemsPerSymbol: parsePositiveInteger(
+        jsonConfig.morningReport?.maxNewsItemsPerSymbol,
+        3
+      ),
+      refreshMarketContextBeforeRun: parseBoolean(
+        jsonConfig.morningReport?.refreshMarketContextBeforeRun,
+        true
+      ),
+      notifyDiscord: parseBoolean(jsonConfig.morningReport?.notifyDiscord, true)
     }
   };
 }
@@ -255,6 +341,14 @@ function parseAiProvider(value: unknown): "ollama" {
   }
 
   throw new Error(`Unsupported AI provider "${String(value)}".`);
+}
+
+function parseMarketContextProvider(value: unknown): "finnhub" {
+  if (value === "finnhub" || value === undefined) {
+    return "finnhub";
+  }
+
+  throw new Error(`Unsupported market context provider "${String(value)}".`);
 }
 
 function parseTimeArray(value: unknown, fallback: string[]): string[] {

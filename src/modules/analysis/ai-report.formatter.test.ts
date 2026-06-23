@@ -1,29 +1,30 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { formatAiTelegramReport } from "./ai-report.formatter.js";
-import type { AiAnalysisOutput } from "./ai-analysis-report.service.js";
+import type { AiAnalysisOutput, AiAnalysisOutputItem } from "./ai-analysis-report.service.js";
 
 describe("formatAiTelegramReport", () => {
-  it("keeps the notification compact and focuses on high-risk items", () => {
+  it("keeps the notification compact and focuses on high-risk attention items", () => {
     const output: AiAnalysisOutput = {
-      title: "Pre-Market Daily Focus Report",
-      overallSummary: "Several symbols moved, but only the highest-risk setups need attention.",
-      focus: [
+      title: "Pre-market Attention Report",
+      overallSummary: "Several symbols moved, but only the highest-risk attention items need review.",
+      watchlist: [
         createItem("NVDA", "medium"),
         createItem("AVGO", "medium")
       ],
-      interesting: [
-        createItem("BINANCE:BTCUSDT", "high"),
-        createItem("BINANCE:ETHUSDT", "medium")
+      highAttention: [
+        createItem("NVDA", "high"),
+        createItem("AVGO", "medium")
       ],
-      avoid: [
+      avoidChasing: [
         createItem("GOOGL", "high"),
         createItem("SPCX", "high")
       ],
-      neutral: [
+      lowSignal: [
         {
           ticker: "INTC",
-          reason: "No strong signal."
+          reason: "No strong signal.",
+          attentionDrivers: []
         }
       ]
     };
@@ -31,28 +32,26 @@ describe("formatAiTelegramReport", () => {
     const message = formatAiTelegramReport(output, "20:00");
 
     assert.ok(message.length <= 1800);
-    assert.match(message, /High-risk watch/);
+    assert.match(message, /Attention watch/);
     assert.match(message, /GOOGL/);
     assert.match(message, /SPCX/);
-    assert.doesNotMatch(message, /BINANCE:BTCUSDT \(high risk\)/);
-    assert.match(message, /Quiet\/omitted:/);
+    assert.doesNotMatch(message, /NVDA \(high risk\)/);
+    assert.match(message, /Low-signal\/omitted:/);
   });
 });
 
-function createItem(ticker: string, riskLevel: "low" | "medium" | "high") {
+function createItem(ticker: string, riskLevel: "low" | "medium" | "high"): AiAnalysisOutputItem {
   return {
     ticker,
     riskLevel,
     reason: `${ticker} has an unusual setup.`,
-    thesis: `${ticker} needs review because risk is elevated.`,
-    setup: `${ticker} setup text.`,
+    attentionDrivers: ["price"],
+    riskContext: "Volatility is elevated.",
     evidence: [
       "Latest price is near the daily low.",
       "Change percent is outside the usual range.",
       "Snapshot count is enough for analysis."
     ],
-    watchLevels: ["Support level", "Recovery level"],
-    risk: "Continuation risk remains elevated.",
-    actionNote: "Wait for confirmation."
+    watchLevels: ["Support level", "Recovery level"]
   };
 }

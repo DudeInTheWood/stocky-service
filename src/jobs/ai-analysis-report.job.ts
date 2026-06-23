@@ -3,6 +3,7 @@ import type { MessageNotificationProvider } from "../modules/notifications/messa
 import { AnalysisClassifierService } from "../modules/analysis/analysis-classifier.service.js";
 import { AnalysisInputService } from "../modules/analysis/analysis-input.service.js";
 import {
+  createDeterministicAttentionOutput,
   AiAnalysisReportService,
   createNotEnoughDataOutput
 } from "../modules/analysis/ai-analysis-report.service.js";
@@ -28,13 +29,13 @@ export class AiAnalysisReportJob {
       const telegramMessage = formatAiTelegramReport(output, reportTime);
 
       await this.dependencies.reportService.saveReport({
-        reportType: "pre_market_daily",
+        reportType: "pre_market_attention",
         timeframe: "1d",
         inputJson: input,
         outputJson: output,
         title: output.title,
         summary: telegramMessage,
-        category: "neutral",
+        category: "lowSignal",
         riskLevel: null,
         confidence: null
       });
@@ -45,11 +46,11 @@ export class AiAnalysisReportJob {
     }
 
     const classifiedInput = this.dependencies.classifierService.classify(input);
-    const llmOutput = await this.dependencies.reportService.generateReport(classifiedInput);
+    const llmOutput = await this.generateReport(classifiedInput);
     const telegramMessage = formatAiTelegramReport(llmOutput, reportTime);
 
     const reportId = await this.dependencies.reportService.saveReport({
-      reportType: "pre_market_daily",
+      reportType: classifiedInput.reportType,
       timeframe: classifiedInput.timeframe,
       inputJson: classifiedInput,
       outputJson: llmOutput,
@@ -72,5 +73,16 @@ export class AiAnalysisReportJob {
     await Promise.all(
       this.dependencies.notificationProviders.map((provider) => provider.notifyMessage(message))
     );
+  }
+
+  private async generateReport(
+    classifiedInput: ReturnType<AnalysisClassifierService["classify"]>
+  ) {
+    try {
+      return await this.dependencies.reportService.generateReport(classifiedInput);
+    } catch (error) {
+      console.error("AI analysis LLM output failed; using deterministic attention report.", error);
+      return createDeterministicAttentionOutput(classifiedInput);
+    }
   }
 }

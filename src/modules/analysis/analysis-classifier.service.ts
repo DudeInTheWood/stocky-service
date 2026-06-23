@@ -1,9 +1,9 @@
 import type { AnalysisInput, AnalysisSymbolInput } from "./analysis-input.service.js";
 
-export type AnalysisCategory = "interesting" | "focus" | "avoid" | "neutral";
+export type AttentionCategory = "highAttention" | "watchlist" | "avoidChasing" | "lowSignal";
 
 export interface ClassifiedAnalysisSymbol extends AnalysisSymbolInput {
-  categoryCandidate: AnalysisCategory;
+  categoryCandidate: AttentionCategory;
   reasons: string[];
 }
 
@@ -29,7 +29,7 @@ function classifySymbol(symbol: AnalysisSymbolInput): ClassifiedAnalysisSymbol {
     reasons.push("Snapshot count is below the minimum needed for a reliable daily read.");
     return {
       ...symbol,
-      categoryCandidate: "avoid",
+      categoryCandidate: "avoidChasing",
       reasons
     };
   }
@@ -40,7 +40,7 @@ function classifySymbol(symbol: AnalysisSymbolInput): ClassifiedAnalysisSymbol {
     reasons.push("Daily range is extremely wide relative to the average price.");
     return {
       ...symbol,
-      categoryCandidate: "avoid",
+      categoryCandidate: "avoidChasing",
       reasons
     };
   }
@@ -67,7 +67,16 @@ function classifySymbol(symbol: AnalysisSymbolInput): ClassifiedAnalysisSymbol {
     reasons.push("Price may already be extended near the daily high.");
     return {
       ...symbol,
-      categoryCandidate: "avoid",
+      categoryCandidate: "avoidChasing",
+      reasons
+    };
+  }
+
+  if (symbol.attentionScore >= 60) {
+    reasons.push("Combined attention score is high.");
+    return {
+      ...symbol,
+      categoryCandidate: "highAttention",
       reasons
     };
   }
@@ -76,7 +85,7 @@ function classifySymbol(symbol: AnalysisSymbolInput): ClassifiedAnalysisSymbol {
     reasons.push("Strong positive movement is close to the daily high.");
     return {
       ...symbol,
-      categoryCandidate: "interesting",
+      categoryCandidate: "highAttention",
       reasons
     };
   }
@@ -85,7 +94,7 @@ function classifySymbol(symbol: AnalysisSymbolInput): ClassifiedAnalysisSymbol {
     reasons.push("Large negative movement is close to the daily low.");
     return {
       ...symbol,
-      categoryCandidate: "interesting",
+      categoryCandidate: "highAttention",
       reasons
     };
   }
@@ -94,16 +103,20 @@ function classifySymbol(symbol: AnalysisSymbolInput): ClassifiedAnalysisSymbol {
     reasons.push("Movement is larger than normal for the watchlist.");
     return {
       ...symbol,
-      categoryCandidate: "interesting",
+      categoryCandidate: "highAttention",
       reasons
     };
   }
 
-  if (changePercent >= 0.75 && symbol.positionInRange === "near_high") {
-    reasons.push("Movement is positive without looking too chaotic.");
+  if (
+    symbol.attentionScore >= 30 ||
+    symbol.newsFactor?.activityLabel === "active" ||
+    symbol.newsFactor?.activityLabel === "very_active"
+  ) {
+    reasons.push("Combined factors suggest the symbol is worth monitoring.");
     return {
       ...symbol,
-      categoryCandidate: "focus",
+      categoryCandidate: "watchlist",
       reasons
     };
   }
@@ -112,7 +125,7 @@ function classifySymbol(symbol: AnalysisSymbolInput): ClassifiedAnalysisSymbol {
 
   return {
     ...symbol,
-    categoryCandidate: "neutral",
+    categoryCandidate: "lowSignal",
     reasons
   };
 }
